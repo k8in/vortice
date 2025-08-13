@@ -63,22 +63,21 @@ type parser struct {
 	rt   reflect.Type
 	rk   reflect.Kind
 	prop *Property
-	argV []reflect.Value
-	argN int
+	argv []reflect.Value
+	argn int
 	deps []string
 	obj  reflect.Type
 }
 
 func (p *parser) Parse(fn any, prop *Property) (*Definition, error) {
-	p.initReflect(fn, prop)
-	if err := p.checkInputAndInit(); err != nil {
+	p.init(fn, prop)
+	if err := p.checkInputAndSet(); err != nil {
 		return nil, errors.Join(ErrParseDefinition, err)
 	}
-
 	return nil, nil
 }
 
-func (p *parser) initReflect(fn any, prop *Property) {
+func (p *parser) init(fn any, prop *Property) {
 	rv := reflect.ValueOf(fn)
 	p.fn = fn
 	p.rt = rv.Type()
@@ -87,7 +86,7 @@ func (p *parser) initReflect(fn any, prop *Property) {
 	p.prop = prop
 }
 
-func (p *parser) checkInputAndInit() error {
+func (p *parser) checkInputAndSet() error {
 	if p.rk != reflect.Func {
 		return errors.New("input must be a function")
 	}
@@ -96,7 +95,7 @@ func (p *parser) checkInputAndInit() error {
 		if err := p.checkArgType(argType); err != nil {
 			return err
 		}
-		p.argV = append(p.argV, reflect.ValueOf(argType))
+		p.argv = append(p.argv, reflect.ValueOf(argType))
 		// p.deps = append(p.deps, FullCompName(GME, dp.generateObjectID(argType)))
 	}
 	return nil
@@ -104,16 +103,13 @@ func (p *parser) checkInputAndInit() error {
 
 func (p *parser) checkArgType(rt reflect.Type) error {
 	switch rt.Kind() {
-
 	case reflect.Struct, reflect.Interface:
 		return nil
-
 	case reflect.Ptr:
 		if rt.Elem().Kind() == reflect.Struct {
 			return nil
 		}
 	default:
-
 	}
 	return fmt.Errorf("invalid argument type: %v", rt.String())
 }
