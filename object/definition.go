@@ -14,12 +14,10 @@ type (
 )
 
 const (
-
 	// Singleton defines a scope where the component is instantiated once and shared throughout its lifecycle.
 	Singleton Scope = "Singleton"
 	// Prototype indicates that a component should be instantiated each time it is requested.
 	Prototype Scope = "Prototype"
-
 	// Core represents the core namespace used to identify the main or default category within the system.
 	Core Namespace = "Core"
 )
@@ -30,16 +28,17 @@ var ErrParseDefinition = errors.New("failed to parse definition")
 // Definition encapsulates the details of a component including its namespace, name, type,
 // factory, dependencies, methods, scope, description, and lazy initialization flag.
 type Definition struct {
-	name      string
-	typ       reflect.Type
-	factory   *Factory
-	dependsOn []string // dependsOn holds the list of component names that this component depends on.
-	methods   *Methods
-	ns        Namespace
-	scope     Scope
-	desc      string
-	lazyInit  bool
-	tags      []string // tags holds a list of string tags associated with the component definition.
+	name        string
+	typ         reflect.Type
+	factory     *Factory
+	dependsOn   []string // dependsOn holds the list of component names that this component depends on.
+	methods     *Methods
+	ns          Namespace
+	scope       Scope
+	desc        string
+	lazyInit    bool
+	autoStartup bool
+	tags        []string // tags holds a list of string tags associated with the component definition.
 }
 
 // IsValid checks if the Definition is valid, ensuring name, type, factory, dependsOn, and methods are set, and tags are not.
@@ -99,6 +98,11 @@ func (d *Definition) LazyInit() bool {
 	return d.lazyInit
 }
 
+// AutoStartup returns whether the component should automatically start up.
+func (d *Definition) AutoStartup() bool {
+	return d.autoStartup
+}
+
 // Tags returns a copy of the tags for the component definition.
 // Always returns a non-nil slice (at least empty).
 func (d *Definition) Tags() []string {
@@ -113,28 +117,30 @@ func (d *Definition) Tags() []string {
 // String returns a string representation of the Definition,
 // including its namespace, name, and tags.
 func (d *Definition) String() string {
-	return fmt.Sprintf("%s<%s %v>", d.ns, d.Name(), d.Tags())
+	return fmt.Sprintf("%s<%s %s %v>", d.ns, d.Name(), d.typ.Kind(), d.Tags())
 }
 
 // Property represents a configuration property with namespace, scope, description,
 // and lazy initialization flag.
 type Property struct {
-	Namespace Namespace
-	Scope     Scope
-	Desc      string
-	LazyInit  bool
-	tags      []string
+	Namespace   Namespace
+	Scope       Scope
+	Desc        string
+	LazyInit    bool
+	AutoStartup bool
+	tags        []string
 }
 
 // NewProperty creates a new Property instance with default values,
 // including Core namespace and Prototype scope.
 func NewProperty() *Property {
 	return &Property{
-		Namespace: Core,
-		Scope:     Prototype,
-		Desc:      "",
-		LazyInit:  true,
-		tags:      []string{},
+		Namespace:   Core,
+		Scope:       Singleton,
+		Desc:        "",
+		LazyInit:    true,
+		AutoStartup: false,
+		tags:        []string{},
 	}
 }
 
@@ -169,17 +175,23 @@ type parser struct {
 	obj  reflect.Type
 }
 
-// newParser creates and returns a new instance of parser with initialized argv and deps.
-func newParser() *parser {
-	return &parser{
+// newParser initializes a new parser instance for a given function,
+// setting up reflection-based properties and dependencies.
+func newParser(fn any) *parser {
+	rv := reflect.ValueOf(fn)
+	p := &parser{
+		fn:   fn,
+		rt:   rv.Type(),
+		rk:   rv.Kind(),
+		rv:   rv,
 		argv: []reflect.Value{},
 		deps: []string{},
 	}
+	return p
 }
 
 // Parse initializes the parser and checks the input, returning a Definition or an error.
-func (p *parser) Parse(fn any, prop *Property) (*Definition, error) {
-	p.initFunc(fn)
+func (p *parser) Parse(prop *Property) (*Definition, error) {
 	if err := p.checkInputAndSet(); err != nil {
 		return nil, errors.Join(ErrParseDefinition, err)
 	}
@@ -196,25 +208,17 @@ func (p *parser) Parse(fn any, prop *Property) (*Definition, error) {
 // newDefinition creates and returns a new Definition based on the parsed function and properties.
 func (p *parser) newDefinition(prop *Property) *Definition {
 	return &Definition{
-		name:      generateReflectionName(p.obj),
-		typ:       p.rt,
-		factory:   newFactory(p.rv, p.argv, p.argn),
-		dependsOn: p.deps,
-		methods:   newMethods(p.obj),
-		ns:        prop.Namespace,
-		scope:     prop.Scope,
-		lazyInit:  prop.LazyInit,
-		tags:      prop.GetTags(),
+		name:        generateReflectionName(p.obj),
+		typ:         p.rt,
+		factory:     newFactory(p.rv, p.argv, p.argn),
+		dependsOn:   p.deps,
+		methods:     newMethods(p.obj),
+		ns:          prop.Namespace,
+		scope:       prop.Scope,
+		lazyInit:    prop.LazyInit,
+		autoStartup: prop.AutoStartup,
+		tags:        prop.GetTags(),
 	}
-}
-
-// init initializes the parser with the function and property
-func (p *parser) initFunc(fn any) {
-	rv := reflect.ValueOf(fn)
-	p.fn = fn
-	p.rt = rv.Type()
-	p.rk = rv.Kind()
-	p.rv = rv
 }
 
 // generateDefinitionName generates a unique name for the definition based

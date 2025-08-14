@@ -9,16 +9,17 @@ import (
 
 func newTestDefinition() *Definition {
 	return &Definition{
-		name:      "test",
-		typ:       reflect.TypeOf(""),
-		factory:   &Factory{},
-		dependsOn: []string{"a", "b"},
-		methods:   &Methods{},
-		ns:        Namespace("default"),
-		scope:     Scope("singleton"),
-		desc:      "desc",
-		lazyInit:  true,
-		tags:      []string{"tag1", "tag2"},
+		name:        "test",
+		typ:         reflect.TypeOf(""),
+		factory:     &Factory{},
+		dependsOn:   []string{"a", "b"},
+		methods:     &Methods{},
+		ns:          Namespace("default"),
+		scope:       Scope("singleton"),
+		desc:        "desc",
+		lazyInit:    true,
+		autoStartup: true,
+		tags:        []string{"tag1", "tag2"},
 	}
 }
 
@@ -47,6 +48,9 @@ func TestDefinition_Getters(t *testing.T) {
 	}
 	if !def.LazyInit() {
 		t.Error("LazyInit getter failed")
+	}
+	if !def.AutoStartup() {
+		t.Error("AutoStartup getter failed")
 	}
 }
 
@@ -110,6 +114,9 @@ func TestDefinition_LazyInitDefault(t *testing.T) {
 	if def.LazyInit() {
 		t.Error("LazyInit default should be false")
 	}
+	if def.AutoStartup() {
+		t.Error("AutoStartup default should be false")
+	}
 }
 
 func TestDefinition_String(t *testing.T) {
@@ -160,11 +167,14 @@ func TestProperty_DefaultValues(t *testing.T) {
 	if prop.Namespace != Core {
 		t.Error("Property default Namespace should be Core")
 	}
-	if prop.Scope != Prototype {
-		t.Error("Property default Scope should be Prototype")
+	if prop.Scope != Singleton {
+		t.Error("Property default Scope should be Singleton")
 	}
 	if prop.LazyInit != true {
 		t.Error("Property default LazyInit should be true")
+	}
+	if prop.AutoStartup != false {
+		t.Error("Property default AutoStartup should be false")
 	}
 	if len(prop.GetTags()) != 0 {
 		t.Error("Property default Tags should be empty")
@@ -178,9 +188,9 @@ func dummyFactory(a dummyDep) dummyStruct { return dummyStruct{} }
 func dummyInvalidFactory(a int) int       { return a }
 
 func TestParser_ParseValid(t *testing.T) {
-	p := newParser()
+	p := newParser(dummyFactory)
 	prop := NewProperty()
-	def, err := p.Parse(dummyFactory, prop)
+	def, err := p.Parse(prop)
 	if err != nil {
 		t.Errorf("Parse should succeed for valid factory, got error: %v", err)
 	}
@@ -190,28 +200,28 @@ func TestParser_ParseValid(t *testing.T) {
 }
 
 func TestParser_ParseInvalidInputType(t *testing.T) {
-	p := newParser()
+	p := newParser(dummyInvalidFactory)
 	prop := NewProperty()
-	_, err := p.Parse(dummyInvalidFactory, prop)
+	_, err := p.Parse(prop)
 	if err == nil {
 		t.Error("Parse should fail for invalid input type")
 	}
 }
 
 func TestParser_ParseInvalidOutputType(t *testing.T) {
-	p := newParser()
-	prop := NewProperty()
 	invalid := func(a dummyDep) int { return 1 }
-	_, err := p.Parse(invalid, prop)
+	p := newParser(invalid)
+	prop := NewProperty()
+	_, err := p.Parse(prop)
 	if err == nil {
 		t.Error("Parse should fail for invalid output type")
 	}
 }
 
 func TestParser_ParseNotFunc(t *testing.T) {
-	p := newParser()
+	p := newParser(123)
 	prop := NewProperty()
-	_, err := p.Parse(123, prop)
+	_, err := p.Parse(prop)
 	if err == nil {
 		t.Error("Parse should fail for non-function input")
 	}

@@ -13,6 +13,10 @@ type Instance interface {
 	Initialized() bool
 	Initializable
 	Destroyable
-	Lifecycle
 	fmt.Stringer
+}
+
+type Service interface {
+	Instance
+	Lifecycle
 }
