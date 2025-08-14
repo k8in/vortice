@@ -14,11 +14,13 @@ type (
 )
 
 const (
-	// Singleton 单例模式
+
+	// Singleton defines a scope where the component is instantiated once and shared throughout its lifecycle.
 	Singleton Scope = "Singleton"
-	// Prototype 原型模式
+	// Prototype indicates that a component should be instantiated each time it is requested.
 	Prototype Scope = "Prototype"
-	// Core 引擎命名空间
+
+	// Core represents the core namespace used to identify the main or default category within the system.
 	Core Namespace = "Core"
 )
 
@@ -31,13 +33,13 @@ type Definition struct {
 	name      string
 	typ       reflect.Type
 	factory   *Factory
-	dependsOn []string // 保证始终为非 nil
+	dependsOn []string // dependsOn holds the list of component names that this component depends on.
 	methods   *Methods
 	ns        Namespace
 	scope     Scope
 	desc      string
 	lazyInit  bool
-	tags      []string // 保证始终为非 nil
+	tags      []string // tags holds a list of string tags associated with the component definition.
 }
 
 // IsValid checks if the Definition is valid, ensuring name, type, factory, dependsOn, and methods are set, and tags are not.
