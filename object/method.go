@@ -1,6 +1,7 @@
 package object
 
 import (
+	"fmt"
 	"reflect"
 )
 
@@ -11,7 +12,6 @@ type (
 		// Init initializes the object, setting up its initial state and preparing it for use.
 		Init()
 	}
-
 	// Destroyable defines an interface for objects that can be destroyed,
 	// typically releasing resources or resetting state.
 	Destroyable interface {
@@ -44,6 +44,7 @@ var (
 // Methods holds method pointers for initialization, destruction,
 // and lifecycle management of a component.
 type Methods struct {
+	obj           reflect.Type
 	initMethod    *reflect.Method
 	destroyMethod *reflect.Method
 	startMethod   *reflect.Method
@@ -55,6 +56,7 @@ type Methods struct {
 // for initialization, destruction, and lifecycle management.
 func newMethods(obj reflect.Type) *Methods {
 	return &Methods{
+		obj:           obj,
 		initMethod:    newMethod(obj, initMethodType, initMethodName),
 		destroyMethod: newMethod(obj, destroyMethodType, destroyMethodName),
 		startMethod:   newMethod(obj, lifecycleType, startMethodName),
@@ -74,34 +76,45 @@ func newMethod(obj reflect.Type, iter reflect.Type, method string) *reflect.Meth
 	return nil
 }
 
-// CallInit invokes the initialization method on the provided reflect.Value.
-func (m *Methods) CallInit(rv reflect.Value) {
-	m.call(rv, m.initMethod)
+// CallInit invokes the initialization method on the provided reflect.Value
+// and returns the result along with any error.
+func (m *Methods) CallInit(ins reflect.Value) (bool, []reflect.Value, error) {
+	return m.call(ins, m.initMethod)
 }
 
-// CallDestroy invokes the destruction method on the provided reflect.Value.
-func (m *Methods) CallDestroy(rv reflect.Value) {
-	m.call(rv, m.destroyMethod)
+// CallDestroy invokes the destruction method on the provided reflect.Value
+// and returns the result along with any error.
+func (m *Methods) CallDestroy(ins reflect.Value) (bool, []reflect.Value, error) {
+	return m.call(ins, m.destroyMethod)
 }
 
-// CallStart invokes the start method on the provided reflect.Value.
-func (m *Methods) CallStart(rv reflect.Value) {
-	m.call(rv, m.startMethod)
+// CallStart invokes the start method on the provided reflect.Value
+// and returns the result along with any error.
+func (m *Methods) CallStart(ins reflect.Value) (bool, []reflect.Value, error) {
+	return m.call(ins, m.startMethod)
 }
 
-// CallStop invokes the stop method on the provided reflect.Value.
-func (m *Methods) CallStop(rv reflect.Value) {
-	m.call(rv, m.stopMethod)
+// CallStop invokes the stop method on the provided reflect.Value
+// and returns the result along with any error.
+func (m *Methods) CallStop(ins reflect.Value) (bool, []reflect.Value, error) {
+	return m.call(ins, m.stopMethod)
 }
 
-// CallRunning invokes the running method on the provided reflect.Value.
-func (m *Methods) CallRunning(rv reflect.Value) {
-	m.call(rv, m.runningMethod)
+// CallRunning invokes the running method on the provided reflect.Value
+// and returns the result along with any error.
+func (m *Methods) CallRunning(ins reflect.Value) (bool, []reflect.Value, error) {
+	return m.call(ins, m.runningMethod)
 }
 
-// call invokes the specified method on the provided reflect.Value if the method is not nil.
-func (m *Methods) call(rv reflect.Value, method *reflect.Method) {
-	if method != nil {
-		rv.MethodByName(method.Name).Call([]reflect.Value{})
+// call attempts to invoke a specified method on the given instance
+// and returns the result along with any error.
+func (m *Methods) call(ins reflect.Value, method *reflect.Method) (bool, []reflect.Value, error) {
+	if method == nil {
+		return false, nil, nil
 	}
+	if m := ins.MethodByName(method.Name); m.IsValid() {
+		return true, m.Call([]reflect.Value{}), nil
+	}
+	return false, nil, fmt.Errorf("instance %s: method %s not found",
+		reflect.TypeOf(ins), method.Name)
 }
