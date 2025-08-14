@@ -15,13 +15,11 @@ type (
 	// Destroyable defines an interface for objects that can be destroyed,
 	// typically releasing resources or resetting state.
 	Destroyable interface {
-
 		// Destroy releases any resources held by the object and resets its state.
 		Destroy()
 	}
 	// Lifecycle defines the methods for managing the lifecycle of a component, including starting, stopping, and checking its running status.
 	Lifecycle interface {
-
 		// Start begins the operation of the component, initiating all necessary processes and services.
 		Start()
 		// Stop stops the component, ensuring all resources are properly released and operations are halted.

@@ -80,7 +80,7 @@ type parser struct {
 
 // Parse initializes the parser and checks the input, returning a Definition or an error.
 func (p *parser) Parse(fn any, prop *Property) (*Definition, error) {
-	p.init(fn)
+	p.initFunc(fn)
 	if err := p.checkInputAndSet(); err != nil {
 		return nil, errors.Join(ErrParseDefinition, err)
 	}
@@ -106,7 +106,7 @@ func (p *parser) newDefinition(prop *Property) *Definition {
 }
 
 // init initializes the parser with the function and property
-func (p *parser) init(fn any) {
+func (p *parser) initFunc(fn any) {
 	rv := reflect.ValueOf(fn)
 	p.fn = fn
 	p.rt = rv.Type()
@@ -170,14 +170,14 @@ func (p *parser) checkReturnType(rt reflect.Type) error {
 	switch rt.Kind() {
 	case reflect.Interface, reflect.Struct:
 		return nil
-
 	case reflect.Ptr:
 		if rt.Elem().Kind() == reflect.Struct {
 			return nil
 		}
 	default:
+		return fmt.Errorf("invalid output type: %v", rt.String())
 	}
-	return fmt.Errorf("invalid output type: %v", rt.String())
+	return nil
 }
 
 // generateReflectionName generates a string representation of the type name
@@ -185,10 +185,9 @@ func generateReflectionName(rt reflect.Type) string {
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 	}
-	pkgPath := rt.PkgPath()
 	name := rt.Name()
 	if rt.Kind() == reflect.Struct {
 		name = "*" + name
 	}
-	return pkgPath + "." + name
+	return rt.PkgPath() + "." + name
 }
