@@ -18,7 +18,6 @@ const (
 	Singleton Scope = "Singleton"
 	// Prototype 原型模式
 	Prototype Scope = "Prototype"
-
 	// Core 引擎命名空间
 	Core Namespace = "Core"
 )
@@ -32,12 +31,19 @@ type Definition struct {
 	name      string
 	typ       reflect.Type
 	factory   *Factory
-	dependsOn []string
+	dependsOn []string // 保证始终为非 nil
 	methods   *Methods
 	ns        Namespace
 	scope     Scope
 	desc      string
 	lazyInit  bool
+	tags      []string // 保证始终为非 nil
+}
+
+// IsValid checks if the Definition is valid, ensuring name, type, factory, dependsOn, and methods are set, and tags are not.
+func (d *Definition) IsValid() bool {
+	return d.name != "" && d.typ != nil && d.factory != nil &&
+		d.dependsOn != nil && d.methods != nil && d.tags != nil
 }
 
 // Name returns the name of the component definition.
@@ -45,7 +51,7 @@ func (d *Definition) Name() string {
 	return d.name
 }
 
-// Type returns the reflect.Type of the component.
+// Type returns the reflect.Type of the component associated with the Definition.
 func (d *Definition) Type() reflect.Type {
 	return d.typ
 }
@@ -55,9 +61,15 @@ func (d *Definition) Factory() *Factory {
 	return d.factory
 }
 
-// DependsOn returns the list of dependencies for the component.
+// DependsOn returns a copy of the list of dependencies for the component.
+// Always returns a non-nil slice (at least empty).
 func (d *Definition) DependsOn() []string {
-	return d.dependsOn
+	if d.dependsOn == nil {
+		return []string{}
+	}
+	deps := make([]string, len(d.dependsOn))
+	copy(deps, d.dependsOn)
+	return deps
 }
 
 // Methods returns the lifecycle and method information for the component.
@@ -85,6 +97,23 @@ func (d *Definition) LazyInit() bool {
 	return d.lazyInit
 }
 
+// Tags returns a copy of the tags for the component definition.
+// Always returns a non-nil slice (at least empty).
+func (d *Definition) Tags() []string {
+	if d.tags == nil {
+		return []string{}
+	}
+	tags := make([]string, len(d.tags))
+	copy(tags, d.tags)
+	return tags
+}
+
+// String returns a string representation of the Definition,
+// including its namespace, name, and tags.
+func (d *Definition) String() string {
+	return fmt.Sprintf("%s<%s %v>", d.ns, d.Name(), d.Tags())
+}
+
 // Property represents a configuration property with namespace, scope, description,
 // and lazy initialization flag.
 type Property struct {
@@ -92,15 +121,31 @@ type Property struct {
 	Scope     Scope
 	Desc      string
 	LazyInit  bool
+	tags      []string
 }
 
+// NewProperty creates a new Property instance with default values,
+// including Core namespace and Prototype scope.
 func NewProperty() *Property {
 	return &Property{
 		Namespace: Core,
 		Scope:     Prototype,
 		Desc:      "",
 		LazyInit:  true,
+		tags:      []string{},
 	}
+}
+
+// SetTag adds a new key-value pair to the property's tags.
+func (prop *Property) SetTag(key, val string) {
+	prop.tags = append(prop.tags, key+"="+val)
+}
+
+// GetTags returns a copy of the tags associated with the property.
+func (prop *Property) GetTags() []string {
+	tags := make([]string, len(prop.tags))
+	copy(tags, prop.tags)
+	return tags
 }
 
 // Parser defines an interface for parsing a function and property to produce
@@ -116,11 +161,18 @@ type parser struct {
 	rv   reflect.Value
 	rt   reflect.Type
 	rk   reflect.Kind
-	prop *Property
 	argv []reflect.Value
 	argn int
 	deps []string
 	obj  reflect.Type
+}
+
+// newParser creates and returns a new instance of parser with initialized argv and deps.
+func newParser() *parser {
+	return &parser{
+		argv: []reflect.Value{},
+		deps: []string{},
+	}
 }
 
 // Parse initializes the parser and checks the input, returning a Definition or an error.
@@ -132,21 +184,25 @@ func (p *parser) Parse(fn any, prop *Property) (*Definition, error) {
 	if err := p.checkOutputAndSet(); err != nil {
 		return nil, errors.Join(ErrParseDefinition, err)
 	}
-	return p.newDefinition(prop), nil
+	def := p.newDefinition(prop)
+	if !def.IsValid() {
+		return nil, errors.Join(ErrParseDefinition, errors.New("invalid definition"))
+	}
+	return def, nil
 }
 
 // newDefinition creates and returns a new Definition based on the parsed function and properties.
 func (p *parser) newDefinition(prop *Property) *Definition {
 	return &Definition{
 		name:      generateReflectionName(p.obj),
-		typ:       p.obj,
+		typ:       p.rt,
 		factory:   newFactory(p.rv, p.argv, p.argn),
 		dependsOn: p.deps,
 		methods:   newMethods(p.obj),
 		ns:        prop.Namespace,
 		scope:     prop.Scope,
-		desc:      prop.Desc,
 		lazyInit:  prop.LazyInit,
+		tags:      prop.GetTags(),
 	}
 }
 
