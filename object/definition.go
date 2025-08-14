@@ -31,13 +31,58 @@ var ErrParseDefinition = errors.New("failed to parse definition")
 type Definition struct {
 	name      string
 	typ       reflect.Type
-	factory   *factory
+	factory   *Factory
 	dependsOn []string
 	methods   *Methods
 	ns        Namespace
 	scope     Scope
 	desc      string
 	lazyInit  bool
+}
+
+// Name returns the name of the component definition.
+func (d *Definition) Name() string {
+	return d.name
+}
+
+// Type returns the reflect.Type of the component.
+func (d *Definition) Type() reflect.Type {
+	return d.typ
+}
+
+// Factory returns the factory associated with the component definition.
+func (d *Definition) Factory() *Factory {
+	return d.factory
+}
+
+// DependsOn returns the list of dependencies for the component.
+func (d *Definition) DependsOn() []string {
+	return d.dependsOn
+}
+
+// Methods returns the lifecycle and method information for the component.
+func (d *Definition) Methods() *Methods {
+	return d.methods
+}
+
+// Namespace returns the namespace of the component definition.
+func (d *Definition) Namespace() Namespace {
+	return d.ns
+}
+
+// Scope returns the scope of the component definition.
+func (d *Definition) Scope() Scope {
+	return d.scope
+}
+
+// Desc returns the description of the component definition.
+func (d *Definition) Desc() string {
+	return d.desc
+}
+
+// LazyInit returns whether the component should be lazily initialized.
+func (d *Definition) LazyInit() bool {
+	return d.lazyInit
 }
 
 // Property represents a configuration property with namespace, scope, description,

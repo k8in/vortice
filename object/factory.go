@@ -47,9 +47,9 @@ type FactoryFunc6[T, A, B, C, D, E, F any] interface {
 	~func(A, B, C, D, E, F) T
 }
 
-// factory represents a structure for creating and managing components,
+// Factory represents a structure for creating and managing components,
 // including their function and arguments.
-type factory struct {
+type Factory struct {
 	name string
 	file string
 	line int
@@ -60,12 +60,48 @@ type factory struct {
 
 // newFactory creates a new factory with the provided function, its arguments,
 // and the number of expected arguments.
-func newFactory(rfn reflect.Value, argv []reflect.Value, argn int) *factory {
+func newFactory(rfn reflect.Value, argv []reflect.Value, argn int) *Factory {
 	ptr := rfn.Pointer()
 	fn := runtime.FuncForPC(ptr)
 	file, line := fn.FileLine(ptr)
-	return &factory{
+	return &Factory{
 		name: fn.Name(), file: file, line: line,
 		fn: rfn, argv: argv, argn: argn,
 	}
+}
+
+// Call invokes the Factory function with the provided arguments
+// and returns the result.
+func (f *Factory) Call(argv []reflect.Value) reflect.Value {
+	return f.fn.Call(argv)[0]
+}
+
+// Name returns the name of the Factory function.
+func (f *Factory) Name() string {
+	return f.name
+}
+
+// File returns the file path where the Factory function is defined.
+func (f *Factory) File() string {
+	return f.file
+}
+
+// Line returns the line number where the Factory function is defined.
+func (f *Factory) Line() int {
+	return f.line
+}
+
+// Func returns the reflect.Value of the Factory function.
+func (f *Factory) Func() reflect.Value {
+	return f.fn
+}
+
+// Argv returns the argument values for the Factory function.
+func (f *Factory) Argv() []reflect.Value {
+	return f.argv
+}
+
+// Argn returns the number of arguments expected by the Factory function.
+func (f *Factory) Argn() int {
+	return f.argn
 }

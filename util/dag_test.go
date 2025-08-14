@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// --- AI GENERATED CODE BEGIN ---
+
 func TestDAG_SimpleSort(t *testing.T) {
 	dag := NewDAG()
 	dag.AddNode("A")
@@ -111,3 +113,5 @@ func TestDAG_RepeatedDependency(t *testing.T) {
 		t.Errorf("topological order incorrect with repeated dependency: %v", order)
 	}
 }
+
+// --- AI GENERATED CODE END ---
