@@ -5,9 +5,3 @@ type Context interface {
 	Start() error
 	Shutdown() error
 }
-
-//type Context struct {
-//	context.Context
-//	mux        *sync.RWMutex
-//	singletons map[string]Object
-//}
