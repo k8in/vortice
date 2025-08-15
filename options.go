@@ -6,7 +6,7 @@ import (
 
 // Option is a function type for configuring properties of an object,
 // allowing modification of its attributes.
-type Option func(prop *object.Property)
+type Option object.Option
 
 // WithDesc sets the description of a property, providing a brief explanation
 // or additional context.

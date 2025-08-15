@@ -8,6 +8,8 @@ import (
 	"vortice/object"
 )
 
+var ErrAlreadyBeenDestroyed = errors.New("object has already been destroyed")
+
 // Object defines the interface for a managed object in the container,
 // including lifecycle, identity, and reflection access.
 type Object interface {
@@ -76,7 +78,7 @@ func (obj *CoreObject) Init() error {
 		return nil
 	}
 	if obj.def == nil {
-		return errors.New("")
+		return ErrAlreadyBeenDestroyed
 	}
 	if err := obj.def.Methods().CallInit(obj.value); err != nil {
 		return err
@@ -89,6 +91,9 @@ func (obj *CoreObject) Init() error {
 func (obj *CoreObject) Destroy() error {
 	obj.mux.Lock()
 	defer obj.mux.Unlock()
+	if obj.def == nil {
+		return ErrAlreadyBeenDestroyed
+	}
 	if err := obj.def.Methods().CallDestroy(obj.value); err != nil {
 		return err
 	}
@@ -102,6 +107,9 @@ func (obj *CoreObject) Destroy() error {
 func (obj *CoreObject) Running() bool {
 	obj.mux.Lock()
 	defer obj.mux.Unlock()
+	if obj.def == nil {
+		return false
+	}
 	b, err := obj.def.Methods().CallRunning(obj.value)
 	if err != nil {
 		return false
@@ -113,6 +121,9 @@ func (obj *CoreObject) Running() bool {
 func (obj *CoreObject) Start() error {
 	obj.mux.Lock()
 	defer obj.mux.Unlock()
+	if obj.def == nil {
+		return ErrAlreadyBeenDestroyed
+	}
 	return obj.def.Methods().CallStart(obj.value)
 }
 
@@ -120,6 +131,9 @@ func (obj *CoreObject) Start() error {
 func (obj *CoreObject) Stop() error {
 	obj.mux.Lock()
 	defer obj.mux.Unlock()
+	if obj.def == nil {
+		return ErrAlreadyBeenDestroyed
+	}
 	return obj.def.Methods().CallStop(obj.value)
 }
 

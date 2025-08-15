@@ -156,6 +156,9 @@ func (prop *Property) GetTags() []string {
 	return tags
 }
 
+// Option is a function type for configuring Property with functional options.
+type Option func(prop *Property)
+
 // Parser is a struct used for parsing and validating function definitions,
 // ensuring they meet certain criteria.
 type Parser struct {
