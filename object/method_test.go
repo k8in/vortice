@@ -13,17 +13,21 @@ type testComponent struct {
 	destroyed   bool
 }
 
-func (c *testComponent) Init() {
+func (c *testComponent) Init() error {
 	c.initialized = true
+	return nil
 }
-func (c *testComponent) Destroy() {
+func (c *testComponent) Destroy() error {
 	c.destroyed = true
+	return nil
 }
-func (c *testComponent) Start() {
+func (c *testComponent) Start() error {
 	c.running = true
+	return nil
 }
-func (c *testComponent) Stop() {
+func (c *testComponent) Stop() error {
 	c.running = false
+	return nil
 }
 func (c *testComponent) Running() bool {
 	return c.running
@@ -31,35 +35,37 @@ func (c *testComponent) Running() bool {
 
 type noLifecycle struct{}
 
+func (c *noLifecycle) Init() error    { return nil }
+func (c *noLifecycle) Destroy() error { return nil }
+func (c *noLifecycle) Start() error   { return nil }
+func (c *noLifecycle) Stop() error    { return nil }
+func (c *noLifecycle) Running() bool  { return false }
+
 func TestMethods_Lifecycle(t *testing.T) {
 	objType := reflect.TypeOf(&testComponent{})
 	methods := newMethods(objType)
 	comp := &testComponent{}
 	val := reflect.ValueOf(comp)
 
-	ok, _, err := methods.CallInit(val)
-	if !ok || err != nil || !comp.initialized {
-		t.Errorf("Init method failed: ok=%v, err=%v, initialized=%v", ok, err, comp.initialized)
+	if err := methods.CallInit(val); err != nil || !comp.initialized {
+		t.Errorf("Init method failed: err=%v, initialized=%v", err, comp.initialized)
 	}
 
-	ok, _, err = methods.CallStart(val)
-	if !ok || err != nil || !comp.running {
-		t.Errorf("Start method failed: ok=%v, err=%v, running=%v", ok, err, comp.running)
+	if err := methods.CallStart(val); err != nil || !comp.running {
+		t.Errorf("Start method failed: err=%v, running=%v", err, comp.running)
 	}
 
-	ok, _, err = methods.CallRunning(val)
-	if !ok || err != nil || !comp.running {
-		t.Errorf("Running method failed: ok=%v, err=%v, running=%v", ok, err, comp.running)
+	running, err := methods.CallRunning(val)
+	if err != nil || !running {
+		t.Errorf("Running method failed: err=%v, running=%v", err, running)
 	}
 
-	ok, _, err = methods.CallStop(val)
-	if !ok || err != nil || comp.running {
-		t.Errorf("Stop method failed: ok=%v, err=%v, running=%v", ok, err, comp.running)
+	if err := methods.CallStop(val); err != nil || comp.running {
+		t.Errorf("Stop method failed: err=%v, running=%v", err, comp.running)
 	}
 
-	ok, _, err = methods.CallDestroy(val)
-	if !ok || err != nil || !comp.destroyed {
-		t.Errorf("Destroy method failed: ok=%v, err=%v, destroyed=%v", ok, err, comp.destroyed)
+	if err := methods.CallDestroy(val); err != nil || !comp.destroyed {
+		t.Errorf("Destroy method failed: err=%v, destroyed=%v", err, comp.destroyed)
 	}
 }
 
@@ -69,25 +75,24 @@ func TestMethods_NoLifecycle(t *testing.T) {
 	comp := &noLifecycle{}
 	val := reflect.ValueOf(comp)
 
-	ok, _, err := methods.CallInit(val)
-	if ok || err != nil {
-		t.Errorf("Init should not exist: ok=%v, err=%v", ok, err)
+	if err := methods.CallInit(val); err != nil {
+		t.Errorf("Init should succeed: err=%v", err)
 	}
-	ok, _, err = methods.CallStart(val)
-	if ok || err != nil {
-		t.Errorf("Start should not exist: ok=%v, err=%v", ok, err)
+	if err := methods.CallStart(val); err != nil {
+		t.Errorf("Start should succeed: err=%v", err)
 	}
-	ok, _, err = methods.CallRunning(val)
-	if ok || err != nil {
-		t.Errorf("Running should not exist: ok=%v, err=%v", ok, err)
+	running, err := methods.CallRunning(val)
+	if err != nil {
+		t.Errorf("Running should succeed: err=%v", err)
 	}
-	ok, _, err = methods.CallStop(val)
-	if ok || err != nil {
-		t.Errorf("Stop should not exist: ok=%v, err=%v", ok, err)
+	if running {
+		t.Errorf("Running should be false for noLifecycle")
 	}
-	ok, _, err = methods.CallDestroy(val)
-	if ok || err != nil {
-		t.Errorf("Destroy should not exist: ok=%v, err=%v", ok, err)
+	if err := methods.CallStop(val); err != nil {
+		t.Errorf("Stop should succeed: err=%v", err)
+	}
+	if err := methods.CallDestroy(val); err != nil {
+		t.Errorf("Destroy should succeed: err=%v", err)
 	}
 }
 

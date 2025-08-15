@@ -188,7 +188,7 @@ func dummyFactory(a dummyDep) dummyStruct { return dummyStruct{} }
 func dummyInvalidFactory(a int) int       { return a }
 
 func TestParser_ParseValid(t *testing.T) {
-	p := newParser(dummyFactory)
+	p := NewParser(dummyFactory)
 	prop := NewProperty()
 	def, err := p.Parse(prop)
 	if err != nil {
@@ -200,7 +200,7 @@ func TestParser_ParseValid(t *testing.T) {
 }
 
 func TestParser_ParseInvalidInputType(t *testing.T) {
-	p := newParser(dummyInvalidFactory)
+	p := NewParser(dummyInvalidFactory)
 	prop := NewProperty()
 	_, err := p.Parse(prop)
 	if err == nil {
@@ -210,7 +210,7 @@ func TestParser_ParseInvalidInputType(t *testing.T) {
 
 func TestParser_ParseInvalidOutputType(t *testing.T) {
 	invalid := func(a dummyDep) int { return 1 }
-	p := newParser(invalid)
+	p := NewParser(invalid)
 	prop := NewProperty()
 	_, err := p.Parse(prop)
 	if err == nil {
@@ -219,7 +219,7 @@ func TestParser_ParseInvalidOutputType(t *testing.T) {
 }
 
 func TestParser_ParseNotFunc(t *testing.T) {
-	p := newParser(123)
+	p := NewParser(123)
 	prop := NewProperty()
 	_, err := p.Parse(prop)
 	if err == nil {

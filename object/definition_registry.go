@@ -14,7 +14,7 @@ var (
 // RegisterFactory registers a factory function with the given property,
 // returning a new Definition.
 func RegisterFactory(fn any, prop *Property) *Definition {
-	parser := newParser(fn)
+	parser := NewParser(fn)
 	def, err := parser.Parse(prop)
 	if err != nil {
 		util.Logger().Panic("failed to register factory: %v", zap.Error(err))

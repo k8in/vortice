@@ -10,20 +10,20 @@ type (
 	// setting up their initial state.
 	Initializable interface {
 		// Init initializes the object, setting up its initial state and preparing it for use.
-		Init()
+		Init() error
 	}
 	// Destroyable defines an interface for objects that can be destroyed,
 	// typically releasing resources or resetting state.
 	Destroyable interface {
 		// Destroy releases any resources held by the object and resets its state.
-		Destroy()
+		Destroy() error
 	}
 	// Lifecycle defines the methods for managing the lifecycle of a component, including starting, stopping, and checking its running status.
 	Lifecycle interface {
 		// Start begins the operation of the component, initiating all necessary processes and services.
-		Start()
+		Start() error
 		// Stop stops the component, ensuring all resources are properly released and operations are halted.
-		Stop()
+		Stop() error
 		// Running returns true if the component is currently running, otherwise false.
 		Running() bool
 	}
@@ -78,32 +78,62 @@ func newMethod(obj reflect.Type, iter reflect.Type, method string) *reflect.Meth
 
 // CallInit invokes the initialization method on the provided reflect.Value
 // and returns the result along with any error.
-func (m *Methods) CallInit(ins reflect.Value) (bool, []reflect.Value, error) {
-	return m.call(ins, m.initMethod)
+func (m *Methods) CallInit(ins reflect.Value) error {
+	return m.simpleCall(ins, m.initMethod)
 }
 
 // CallDestroy invokes the destruction method on the provided reflect.Value
 // and returns the result along with any error.
-func (m *Methods) CallDestroy(ins reflect.Value) (bool, []reflect.Value, error) {
-	return m.call(ins, m.destroyMethod)
+func (m *Methods) CallDestroy(ins reflect.Value) error {
+	return m.simpleCall(ins, m.destroyMethod)
 }
 
 // CallStart invokes the start method on the provided reflect.Value
 // and returns the result along with any error.
-func (m *Methods) CallStart(ins reflect.Value) (bool, []reflect.Value, error) {
-	return m.call(ins, m.startMethod)
+func (m *Methods) CallStart(ins reflect.Value) error {
+	return m.simpleCall(ins, m.startMethod)
 }
 
 // CallStop invokes the stop method on the provided reflect.Value
 // and returns the result along with any error.
-func (m *Methods) CallStop(ins reflect.Value) (bool, []reflect.Value, error) {
-	return m.call(ins, m.stopMethod)
+func (m *Methods) CallStop(ins reflect.Value) error {
+	return m.simpleCall(ins, m.stopMethod)
 }
 
 // CallRunning invokes the running method on the provided reflect.Value
 // and returns the result along with any error.
-func (m *Methods) CallRunning(ins reflect.Value) (bool, []reflect.Value, error) {
-	return m.call(ins, m.runningMethod)
+func (m *Methods) CallRunning(ins reflect.Value) (bool, error) {
+	ok, rv, err := m.call(ins, m.runningMethod)
+	if err != nil || !ok {
+		return false, err
+	}
+	if len(rv) != 1 {
+		return false, fmt.Errorf("instance %s: method %s return value is invalid",
+			reflect.TypeOf(ins), m.runningMethod.Name)
+	}
+	b, ok := rv[0].Interface().(bool)
+	if !ok {
+		return false, fmt.Errorf("instance %s: method %s return value is not bool",
+			reflect.TypeOf(ins), m.runningMethod.Name)
+	}
+	return b, nil
+}
+
+// simpleCall invokes a method on the provided instance and returns an error
+// if the first return value is of error type.
+func (m *Methods) simpleCall(ins reflect.Value, method *reflect.Method) error {
+	ok, rv, err := m.call(ins, method)
+	if err != nil || !ok {
+		return err
+	}
+	if len(rv) != 1 {
+		return fmt.Errorf("instance %s: method %s return value is invalid",
+			reflect.TypeOf(ins), method.Name)
+	}
+	if e, ok := rv[0].Interface().(error); ok && e != nil {
+		return e
+	}
+	return nil
 }
 
 // call attempts to invoke a specified method on the given instance

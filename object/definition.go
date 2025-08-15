@@ -156,15 +156,9 @@ func (prop *Property) GetTags() []string {
 	return tags
 }
 
-// Parser defines an interface for parsing a function and property to produce
-// a component definition.
-type Parser interface {
-	Parse(fn any, prop *Property) (*Definition, error)
-}
-
-// parser is a struct used for parsing and validating function definitions,
+// Parser is a struct used for parsing and validating function definitions,
 // ensuring they meet certain criteria.
-type parser struct {
+type Parser struct {
 	fn   any
 	rv   reflect.Value
 	rt   reflect.Type
@@ -175,11 +169,11 @@ type parser struct {
 	obj  reflect.Type
 }
 
-// newParser initializes a new parser instance for a given function,
+// NewParser initializes a new parser instance for a given function,
 // setting up reflection-based properties and dependencies.
-func newParser(fn any) *parser {
+func NewParser(fn any) *Parser {
 	rv := reflect.ValueOf(fn)
-	p := &parser{
+	p := &Parser{
 		fn:   fn,
 		rt:   rv.Type(),
 		rk:   rv.Kind(),
@@ -191,7 +185,7 @@ func newParser(fn any) *parser {
 }
 
 // Parse initializes the parser and checks the input, returning a Definition or an error.
-func (p *parser) Parse(prop *Property) (*Definition, error) {
+func (p *Parser) Parse(prop *Property) (*Definition, error) {
 	if err := p.checkInputAndSet(); err != nil {
 		return nil, errors.Join(ErrParseDefinition, err)
 	}
@@ -206,7 +200,7 @@ func (p *parser) Parse(prop *Property) (*Definition, error) {
 }
 
 // newDefinition creates and returns a new Definition based on the parsed function and properties.
-func (p *parser) newDefinition(prop *Property) *Definition {
+func (p *Parser) newDefinition(prop *Property) *Definition {
 	return &Definition{
 		name:        generateReflectionName(p.obj),
 		typ:         p.rt,
@@ -223,12 +217,12 @@ func (p *parser) newDefinition(prop *Property) *Definition {
 
 // generateDefinitionName generates a unique name for the definition based
 // on the namespace and argument type
-func (p *parser) generateDefinitionName(ns Namespace, argType reflect.Type) string {
+func (p *Parser) generateDefinitionName(ns Namespace, argType reflect.Type) string {
 	return fmt.Sprintf("%s:%s", ns, generateReflectionName(argType))
 }
 
 // checkInputAndSet checks the input function and sets the argument values
-func (p *parser) checkInputAndSet() error {
+func (p *Parser) checkInputAndSet() error {
 	if p.rk != reflect.Func {
 		return errors.New("input must be a function")
 	}
@@ -246,7 +240,7 @@ func (p *parser) checkInputAndSet() error {
 
 // checkOutputAndSet verifies the output of the function,
 // ensuring it has exactly one return value and sets the object type.
-func (p *parser) checkOutputAndSet() error {
+func (p *Parser) checkOutputAndSet() error {
 	if p.rt.NumOut() != 1 {
 		return errors.New("invalid factory function output")
 	}
@@ -258,7 +252,7 @@ func (p *parser) checkOutputAndSet() error {
 }
 
 // checkArgType checks the argument type and returns an error if it is invalid
-func (p *parser) checkArgType(rt reflect.Type) error {
+func (p *Parser) checkArgType(rt reflect.Type) error {
 	switch rt.Kind() {
 	case reflect.Struct, reflect.Interface:
 		return nil
@@ -273,7 +267,7 @@ func (p *parser) checkArgType(rt reflect.Type) error {
 
 // checkReturnType validates the return of a function,
 // ensuring it is an interface, struct, or pointer to a struct.
-func (p *parser) checkReturnType(rt reflect.Type) error {
+func (p *Parser) checkReturnType(rt reflect.Type) error {
 	switch rt.Kind() {
 	case reflect.Interface, reflect.Struct:
 		return nil

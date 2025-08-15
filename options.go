@@ -1,6 +1,8 @@
 package vortice
 
-import "vortice/object"
+import (
+	"vortice/object"
+)
 
 // Option is a function type for configuring properties of an object,
 // allowing modification of its attributes.
@@ -41,12 +43,8 @@ func WithLazyInit() Option {
 // WithAutoStartup sets the AutoStartup property to true, enabling automatic startup for the object.
 func WithAutoStartup() Option {
 	return func(prop *object.Property) {
-		prop.AutoStartup = true
-	}
-}
-
-func WithExtension() Option {
-	return func(prop *object.Property) {
+		prop.LazyInit = false
+		prop.Scope = object.Singleton
 		prop.AutoStartup = true
 	}
 }
