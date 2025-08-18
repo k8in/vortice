@@ -21,27 +21,43 @@ func TestDefinitionRegistry_Register_DuplicateFactory(t *testing.T) {
 	reg := newDefinitionRegistry()
 	def1 := makeTestDefinition("obj1", "factory1", []string{"tag"})
 	def2 := makeTestDefinition("obj2", "factory1", []string{"tag"})
-	if err := reg.register(def1); err != nil {
+	if err := reg.register(def1, false); err != nil {
 		t.Fatalf("register def1 failed: %v", err)
 	}
-	if err := reg.register(def2); err == nil {
+	if err := reg.register(def2, false); err == nil {
 		t.Error("register should fail for duplicate factory")
+	}
+}
+
+func TestDefinitionRegistry_Register_Unique(t *testing.T) {
+	reg := newDefinitionRegistry()
+	def1 := makeTestDefinition("obj1", "factory1", []string{"tag"})
+	def2 := makeTestDefinition("obj1", "factory2", []string{"tag"})
+	if err := reg.register(def1, true); err != nil {
+		t.Fatalf("register def1 failed: %v", err)
+	}
+	// unique=true，name重复，应该报错
+	if err := reg.register(def2, true); err == nil {
+		t.Error("register should fail for duplicate name when unique is true")
+	}
+	// unique=false，name重复，允许
+	if err := reg.register(def2, false); err != nil {
+		t.Errorf("register should allow duplicate name when unique is false, got %v", err)
 	}
 }
 
 func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	reg := newDefinitionRegistry()
 	def := makeTestDefinition("obj", "factory", []string{"tag"})
-	if err := reg.register(def); err != nil {
+	if err := reg.register(def, false); err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 	reg.Init()
 	if !reg.readonly.Load() {
 		t.Error("registry should be readonly after Init")
 	}
-	// 注册后锁定，不能再注册
 	def2 := makeTestDefinition("obj2", "factory2", []string{"tag"})
-	if err := reg.register(def2); err == nil {
+	if err := reg.register(def2, false); err == nil {
 		t.Error("register should fail after Init")
 	}
 }
@@ -49,7 +65,7 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
 	reg := newDefinitionRegistry()
 	def := makeTestDefinition("obj", "factory", []string{"tag"})
-	if err := reg.register(def); err != nil {
+	if err := reg.register(def, false); err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 	list, ok := reg.entries[def.Name()]
@@ -67,9 +83,9 @@ func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
 	defA := makeTestDefinition("A", "fa", []string{"tag1"})
 	defB := makeTestDefinition("A", "fb", []string{"tag2"})
 	defC := makeTestDefinition("B", "fc", []string{"tag1"})
-	_ = reg.register(defA)
-	_ = reg.register(defB)
-	_ = reg.register(defC)
+	_ = reg.register(defA, false)
+	_ = reg.register(defB, false)
+	_ = reg.register(defC, false)
 
 	// 按 factory name 过滤
 	filter := func(def *Definition) bool { return def.Factory().Name() == "fa" }
@@ -97,9 +113,9 @@ func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
 	defA := makeTestDefinition("A", "fa", []string{"tag1"})
 	defB := makeTestDefinition("B", "fb", []string{"tag2"})
 	defC := makeTestDefinition("C", "fc", []string{"tag1"})
-	_ = reg.register(defA)
-	_ = reg.register(defB)
-	_ = reg.register(defC)
+	_ = reg.register(defA, false)
+	_ = reg.register(defB, false)
+	_ = reg.register(defC, false)
 
 	// 无 filter
 	allDefs := reg.GetDefinitions()
@@ -127,8 +143,8 @@ func TestDefinitionRegistry_SortAndCheck_Cycle(t *testing.T) {
 	defB := makeTestDefinition("B", "fb", []string{})
 	defA.dependsOn = []string{"B"} // 依赖名称用 name
 	defB.dependsOn = []string{"A"}
-	_ = reg.register(defA)
-	_ = reg.register(defB)
+	_ = reg.register(defA, false)
+	_ = reg.register(defB, false)
 	err := reg.sortAndCheck()
 	if err == nil {
 		t.Error("sortAndCheck should fail for cycle")
@@ -138,8 +154,8 @@ func TestDefinitionRegistry_SortAndCheck_Cycle(t *testing.T) {
 func TestDefinitionRegistry_SortAndCheck_MissingDep(t *testing.T) {
 	reg := newDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{})
-	defA.dependsOn = []string{"B"} // 依赖名称用 name
-	_ = reg.register(defA)
+	defA.dependsOn = []string{"B"} // ���赖名称用 name
+	_ = reg.register(defA, false)
 	err := reg.sortAndCheck()
 	if err == nil {
 		t.Error("sortAndCheck should fail for missing dependency")
@@ -152,8 +168,8 @@ func TestDefinitionRegistry_Init_SortAndCheck(t *testing.T) {
 	defB := makeTestDefinition("B", "fb", []string{})
 	defA.dependsOn = []string{"B"} // 依赖名称用 name
 	defB.dependsOn = []string{}
-	_ = reg.register(defA)
-	_ = reg.register(defB)
+	_ = reg.register(defA, false)
+	_ = reg.register(defB, false)
 	reg.Init()
 	if !reg.readonly.Load() {
 		t.Error("Init should set registry to readonly")
@@ -189,11 +205,11 @@ func TestDefinitionRegistry_Init_SortAndCheck_Complex(t *testing.T) {
 	defC.dependsOn = []string{"D"}
 	defD.dependsOn = []string{}
 
-	_ = reg.register(defA1)
-	_ = reg.register(defA2)
-	_ = reg.register(defB)
-	_ = reg.register(defC)
-	_ = reg.register(defD)
+	_ = reg.register(defA1, false)
+	_ = reg.register(defA2, false)
+	_ = reg.register(defB, false)
+	_ = reg.register(defC, false)
+	_ = reg.register(defD, false)
 
 	reg.Init()
 	if !reg.readonly.Load() {

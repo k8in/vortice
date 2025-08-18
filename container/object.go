@@ -8,6 +8,7 @@ import (
 	"vortice/object"
 )
 
+// ErrAlreadyBeenDestroyed is the error returned when an operation is attempted on an already destroyed object.
 var ErrAlreadyBeenDestroyed = errors.New("object has already been destroyed")
 
 // Object defines the interface for a managed object in the container,

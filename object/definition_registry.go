@@ -19,13 +19,13 @@ var (
 
 // RegisterFactory registers a factory function with the given property,
 // returning a new Definition.
-func RegisterFactory(fn any, prop *Property) (*Definition, error) {
+func RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error) {
 	parser := NewParser(fn)
 	def, err := parser.Parse(prop)
 	if err != nil {
 		return nil, errors.Join(ErrRegisterFactory, err)
 	}
-	if err := dr.register(def); err != nil {
+	if err := dr.register(def, unique); err != nil {
 		return nil, errors.Join(ErrRegisterFactory, err)
 	}
 	return def, nil
@@ -129,14 +129,19 @@ func (dr *DefinitionRegistry) GetDefinitions(filters ...DefinitionFilter) []*Def
 	return result
 }
 
-// register adds a new Definition to the registry, ensuring no duplicate factory functions and not in read-only mode.
-func (dr *DefinitionRegistry) register(def *Definition) error {
+// register adds a new Definition to the registry, ensuring it's unique if required and not in read-only mode.
+func (dr *DefinitionRegistry) register(def *Definition, unique bool) error {
 	if dr.readonly.Load() {
 		return errors.New("the DefinitionRegistry has been locked")
 	}
+	if unique {
+		if _, ok := dr.entries[def.Name()]; ok {
+			return fmt.Errorf("object type %s does not allow duplicate definition", def.Name())
+		}
+	}
 	fid := def.Factory().Name()
 	if _, ok := dr.factories[fid]; ok {
-		return fmt.Errorf("object's factory function %s already exists", fid)
+		return fmt.Errorf("definition's factory function %s already exists", fid)
 	}
 	dr.factories[fid] = def
 	dr.entries[def.Name()] = append(dr.entries[def.Name()], def)
@@ -172,7 +177,7 @@ func (dr *DefinitionRegistry) sortAndCheck() error {
 	}
 	inSeq := []string{}
 	for _, name := range sorted {
-		// 检查是否已注册
+		// 检查是否��注册
 		defs, ok := dr.entries[name]
 		if !ok {
 			return fmt.Errorf("%s validation failed: definition not found", name)

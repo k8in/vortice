@@ -9,17 +9,30 @@ import (
 	"vortice/util"
 )
 
+const (
+	// TagComponent is a constant string used to identify a component kind in tags.
+	TagComponent = "kind=component"
+)
+
+var (
+	componentFilter = object.DefinitionFilter(func(def *object.Definition) bool {
+		return util.InSlice(TagComponent, def.Tags())
+	})
+	singletonFilter = object.DefinitionFilter(func(def *object.Definition) bool {
+		return def.Scope() == object.Singleton
+	})
+)
+
 // ObjectFactory is an interface for creating and managing objects, including initialization and destruction.
 type ObjectFactory interface {
 	// GetObject retrieves an object of the specified type within the given namespace, using the provided context.
 	GetObject(ctx Context, typ any) (Object, error)
-	// NewObject creates a new object based on the provided definition and context, returning the object and any error encountered.
-	NewObject(ctx Context, def *object.Definition) (Object, error)
 }
 
 // CoreObjectFactory is a factory for creating core objects, equipped with definition filters to
 // customize object creation.
 type CoreObjectFactory struct {
+	registry *object.DefinitionRegistry
 	*sync.Mutex
 	objs  map[string]Object
 	comps []Object
@@ -28,9 +41,10 @@ type CoreObjectFactory struct {
 // NewObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
 func NewObjectFactory() ObjectFactory {
 	return &CoreObjectFactory{
-		Mutex: &sync.Mutex{},
-		objs:  map[string]Object{},
-		comps: []Object{},
+		registry: object.GetDefinitionRegistry(),
+		Mutex:    &sync.Mutex{},
+		objs:     map[string]Object{},
+		comps:    []Object{},
 	}
 }
 
@@ -52,25 +66,25 @@ func (c *CoreObjectFactory) GetObject(ctx Context, typ any) (Object, error) {
 			return obj, nil
 		}
 	}
-	return c.NewObject(ctx, def)
+	return c.newObject(def, ctx.GetObjects())
 }
 
 // NewObject creates a new object based on the provided definition and context, handling dependencies.
-func (c *CoreObjectFactory) NewObject(ctx Context, def *object.Definition) (Object, error) {
+func (c *CoreObjectFactory) newObject(def *object.Definition, objs map[string]Object) (Object, error) {
 	if def.Factory().Argn() == 0 {
-		return c.new(def, ctx.GetObjects())
+		return c.new(def, objs)
 	}
 	deps, err := c.getDependencies(def)
 	if err != nil {
 		return nil, err
 	}
-	return c.build(ctx, def, deps)
+	return c.build(def, deps, objs)
 }
 
 // build constructs an object and its dependencies based on the provided definition, dependency list, and context.
-func (c *CoreObjectFactory) build(ctx Context, def *object.Definition, deps []string) (Object, error) {
+func (c *CoreObjectFactory) build(def *object.Definition, deps []string, objs map[string]Object) (Object, error) {
 	cache := map[string]Object{}
-	for k, v := range ctx.GetObjects() {
+	for k, v := range objs {
 		cache[k] = v
 	}
 	var obj Object
@@ -84,7 +98,7 @@ func (c *CoreObjectFactory) build(ctx Context, def *object.Definition, deps []st
 			obj, _ = c.objs[def.ID()]
 		}
 		if obj == nil {
-			obj, err = c.new(def, ctx.GetObjects())
+			obj, err = c.new(def, cache)
 			if err != nil {
 				return nil, err
 			}
@@ -114,7 +128,7 @@ func (r *CoreObjectFactory) getType(typ any) reflect.Type {
 }
 
 // getDependencies retrieves and sorts the dependencies for a given object definition.
-func (c *CoreObjectFactory) getDependencies(def *object.Definition, dfs ...object.DefinitionFilter) ([]string, error) {
+func (c *CoreObjectFactory) getDependencies(def *object.Definition) ([]string, error) {
 	dag, deps := util.NewDAG(), def.DependsOn()
 	dag.AddNode(def.Name(), deps...)
 	queue := append([]string{}, deps...)
@@ -122,7 +136,7 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition, dfs ...objec
 		node := queue[0]
 		queue = queue[1:]
 
-		def, err := c.getDefinition(node, dfs...)
+		def, err := c.getDefinition(node, componentFilter)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +154,7 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition, dfs ...objec
 // getDefinition retrieves a definition by name from the core namespace,
 // returning an error if not found.
 func (c *CoreObjectFactory) getDefinition(name string, dfs ...object.DefinitionFilter) (*object.Definition, error) {
-	def := object.GetDefinitionRegistry().GetDefinition(name, dfs...)
+	def := c.registry.GetDefinition(name, dfs...)
 	if def == nil || len(def) == 0 {
 		return nil, fmt.Errorf("definition not found: %s", name)
 	}
@@ -167,32 +181,24 @@ func (c *CoreObjectFactory) new(def *object.Definition, objs map[string]Object) 
 	return NewObject(def, rv, rv.Interface()), nil
 }
 
+// init initializes the CoreObjectFactory, creating and initializing all singleton objects.
 func (c *CoreObjectFactory) init() error {
-	//defNames := component.GetDefinitionNames()
-	//r.mux.Lock()
-	//defer r.mux.Unlock()
-	//for _, name := range defNames {
-	//	def := component.GetDefinition(name)
-	//	if def.Scope() == component.SingletonScope {
-	//		comp := r.newComponent(def)
-	//		logger.Printf("%s created", def)
-	//		if !def.LazyInit() {
-	//			comp.Init()
-	//		}
-	//		r.singletons[name] = comp
-	//	}
-	//}
-	//filter := object.ScopeFilter(object.Singleton)
-	//defs := object.GetDefinitionRegistry().GetDefinitions(filter)
-	//c.Lock()
-	//defer c.Unlock()
-	//for _, def := range defs {
-	//	obj := c.new()
-	//	if def.LazyInit() {
-	//		continue
-	//	}
-	//}
-	//return nil
+	c.registry.Init()
+	defs := c.registry.GetDefinitions(singletonFilter)
+	c.Lock()
+	defer c.Unlock()
+	for _, def := range defs {
+		obj, err := c.newObject(def, map[string]Object{})
+		if err != nil {
+			return err
+		}
+		if !def.LazyInit() {
+			if err = obj.Init(); err != nil {
+				return err
+			}
+		}
+		c.objs[def.ID()] = obj
+	}
 	return nil
 }
 
