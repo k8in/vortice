@@ -29,14 +29,18 @@ var (
 
 // ObjectFactory is an interface for creating and managing objects, including initialization and destruction.
 type ObjectFactory interface {
+	// DefinitionRegistry is an interface for managing and retrieving definitions, including initialization and registration.
+	object.DefinitionRegistry
 	// GetObject retrieves an object of the specified type within the given namespace, using the provided context.
 	GetObject(ctx Context, typ any) (Object, error)
+	// Destroy cleans up resources and finalizes the ObjectFactory, returning an error if the operation fails.
+	Destroy() error
 }
 
 // CoreObjectFactory is a factory for creating core objects, equipped with definition filters to
 // customize object creation.
 type CoreObjectFactory struct {
-	registry *object.DefinitionRegistry
+	object.DefinitionRegistry
 	*sync.Mutex
 	objs map[string]Object
 }
@@ -44,9 +48,9 @@ type CoreObjectFactory struct {
 // NewObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
 func NewObjectFactory() ObjectFactory {
 	return &CoreObjectFactory{
-		registry: object.GetDefinitionRegistry(),
-		Mutex:    &sync.Mutex{},
-		objs:     map[string]Object{},
+		DefinitionRegistry: object.NewDefinitionRegistry(),
+		Mutex:              &sync.Mutex{},
+		objs:               map[string]Object{},
 	}
 }
 
@@ -89,9 +93,12 @@ func (c *CoreObjectFactory) build(def *object.Definition, deps []string, objs ma
 	for k, v := range objs {
 		cache[k] = v
 	}
+	for k, v := range c.objs {
+		cache[k] = v
+	}
 	var obj Object
 	for _, name := range deps {
-		def, err := c.getDefinition(name)
+		def, err := c.getDefinition(name, nsCoreFilter)
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +163,7 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition) ([]string, e
 // getDefinition retrieves a definition by name from the core namespace,
 // returning an error if not found.
 func (c *CoreObjectFactory) getDefinition(name string, dfs ...object.DefinitionFilter) (*object.Definition, error) {
-	def := c.registry.GetDefinition(name, dfs...)
+	def := c.GetDefinition(name, dfs...)
 	if def == nil || len(def) == 0 {
 		return nil, fmt.Errorf("definition not found: %s", name)
 	}
@@ -183,10 +190,12 @@ func (c *CoreObjectFactory) new(def *object.Definition, objs map[string]Object) 
 	return NewObject(def, rv, rv.Interface()), nil
 }
 
-// init initializes the CoreObjectFactory, creating and initializing all singleton objects.
-func (c *CoreObjectFactory) init() error {
-	c.registry.Init()
-	defs := c.registry.GetDefinitions(singletonFilter)
+// Init initializes the CoreObjectFactory and its singleton objects, returning an error if any occurs.
+func (c *CoreObjectFactory) Init() error {
+	if err := c.DefinitionRegistry.Init(); err != nil {
+		return err
+	}
+	defs := c.GetDefinitions(singletonFilter)
 	c.Lock()
 	defer c.Unlock()
 	for _, def := range defs {
@@ -204,8 +213,8 @@ func (c *CoreObjectFactory) init() error {
 	return nil
 }
 
-// destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
-func (c *CoreObjectFactory) destroy() error {
+// Destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
+func (c *CoreObjectFactory) Destroy() error {
 	c.Lock()
 	defer c.Unlock()
 	for _, obj := range c.objs {

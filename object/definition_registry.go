@@ -13,31 +13,24 @@ import (
 var (
 	// ErrRegisterFactory is the error returned when a factory registration fails.
 	ErrRegisterFactory = errors.New("failed to register factory")
-
-	dr = newDefinitionRegistry()
 )
 
-// RegisterFactory registers a factory function with the given property,
-// returning a new Definition.
-func RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error) {
-	parser := NewParser(fn)
-	def, err := parser.Parse(prop)
-	if err != nil {
-		return nil, errors.Join(ErrRegisterFactory, err)
+type (
+	// DefinitionFilter defines a filter function for Definition.
+	DefinitionFilter func(*Definition) bool
+	// DefinitionRegistry is an interface for managing and retrieving definitions.
+	DefinitionRegistry interface {
+		// Init initializes the DefinitionRegistry, preparing it for use and returns an error if initialization fails.
+		Init() error
+		// RegisterFactory registers a factory function with the given property and returns a new Definition,
+		// or an error if registration fails.
+		RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error)
+		// GetDefinition retrieves a list of Definitions by name, optionally filtered by the provided DefinitionFilter functions.
+		GetDefinition(name string, filters ...DefinitionFilter) []*Definition
+		// GetDefinitions returns a list of all Definitions, optionally filtered by the provided DefinitionFilter functions.
+		GetDefinitions(filters ...DefinitionFilter) []*Definition
 	}
-	if err := dr.register(def, unique); err != nil {
-		return nil, errors.Join(ErrRegisterFactory, err)
-	}
-	return def, nil
-}
-
-// GetDefinitionRegistry returns the global DefinitionRegistry instance.
-func GetDefinitionRegistry() *DefinitionRegistry {
-	return dr
-}
-
-// DefinitionFilter defines a filter function for Definition.
-type DefinitionFilter func(*Definition) bool
+)
 
 // ScopeFilter returns a DefinitionFilter that matches Definitions with the specified scope.
 func ScopeFilter(scope Scope) DefinitionFilter {
@@ -58,21 +51,21 @@ func TagFilter(match string) DefinitionFilter {
 	}
 }
 
-// DefinitionRegistry manages a collection of component definitions and their associated factories,
+// DefaultDefRegistry manages a collection of component definitions and their associated factories,
 // supporting read-only state.
-type DefinitionRegistry struct {
+type DefaultDefRegistry struct {
 	readonly  *atomic.Bool
 	entries   map[string][]*Definition
 	factories map[string]*Definition
 	inSeq     []string
 }
 
-// newDefinitionRegistry creates and returns a new DefinitionRegistry with
+// NewDefinitionRegistry creates and returns a new DefinitionRegistry with
 // an initial read-write state.
-func newDefinitionRegistry() *DefinitionRegistry {
+func NewDefinitionRegistry() *DefaultDefRegistry {
 	readonly := &atomic.Bool{}
 	readonly.Store(false)
-	return &DefinitionRegistry{
+	return &DefaultDefRegistry{
 		readonly:  readonly,
 		entries:   map[string][]*Definition{},
 		factories: map[string]*Definition{},
@@ -80,17 +73,31 @@ func newDefinitionRegistry() *DefinitionRegistry {
 	}
 }
 
-// Init locks the DefinitionRegistry, sorts and checks definitions for cycles, and prepares it for use.
-func (dr *DefinitionRegistry) Init() {
+// RegisterFactory registers a factory function with the given property, returning a new Definition.
+func (dr *DefaultDefRegistry) RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error) {
+	parser := NewParser(fn)
+	def, err := parser.Parse(prop)
+	if err != nil {
+		return nil, errors.Join(ErrRegisterFactory, err)
+	}
+	if err := dr.register(def, unique); err != nil {
+		return nil, errors.Join(ErrRegisterFactory, err)
+	}
+	return def, nil
+}
+
+// Init locks the DefinitionRegistry, sorts and checks for circular dependencies, then logs the process.
+func (dr *DefaultDefRegistry) Init() error {
 	dr.readonly.Store(true)
 	util.Logger().Info("The DefinitionRegistry has already been locked")
 	if err := dr.sortAndCheck(); err != nil {
-		util.Logger().Panic("init", zap.Error(err))
+		return err
 	}
+	return nil
 }
 
 // GetDefinition retrieves definitions by name, optionally applying filters to refine the results.
-func (dr *DefinitionRegistry) GetDefinition(name string, filters ...DefinitionFilter) []*Definition {
+func (dr *DefaultDefRegistry) GetDefinition(name string, filters ...DefinitionFilter) []*Definition {
 	defs := dr.entries[name]
 	if len(filters) == 0 {
 		return defs
@@ -112,7 +119,7 @@ func (dr *DefinitionRegistry) GetDefinition(name string, filters ...DefinitionFi
 }
 
 // GetDefinitions returns a list of definitions that match all the provided filters.
-func (dr *DefinitionRegistry) GetDefinitions(filters ...DefinitionFilter) []*Definition {
+func (dr *DefaultDefRegistry) GetDefinitions(filters ...DefinitionFilter) []*Definition {
 	var result []*Definition
 	for _, def := range dr.factories {
 		matched := true
@@ -130,7 +137,7 @@ func (dr *DefinitionRegistry) GetDefinitions(filters ...DefinitionFilter) []*Def
 }
 
 // register adds a new Definition to the registry, ensuring it's unique if required and not in read-only mode.
-func (dr *DefinitionRegistry) register(def *Definition, unique bool) error {
+func (dr *DefaultDefRegistry) register(def *Definition, unique bool) error {
 	if dr.readonly.Load() {
 		return errors.New("the DefinitionRegistry has been locked")
 	}
@@ -166,7 +173,7 @@ func (dr *DefinitionRegistry) register(def *Definition, unique bool) error {
 
 // 为了简化系统设计，不允许依赖环这种代码设计
 */
-func (dr *DefinitionRegistry) sortAndCheck() error {
+func (dr *DefaultDefRegistry) sortAndCheck() error {
 	dag, defs := util.NewDAG(), dr.factories
 	for _, def := range defs {
 		dag.AddNode(def.Name(), def.DependsOn()...)

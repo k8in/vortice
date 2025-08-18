@@ -17,22 +17,33 @@ func factoryA(b *depB) *depA                { return &depA{} }
 func factoryB() *depB                       { return &depB{} }
 func factoryCore(a *depA, b *depB) *coreObj { return &coreObj{} }
 
-// TestContext 用于测试，模拟 Context 行为
 type TestContext struct{ context.Context }
 
-func (t *TestContext) GetFilters() []object.DefinitionFilter { return nil }
+func (t *TestContext) GetFilters() []object.DefinitionFilter { return []object.DefinitionFilter{} }
 func (t *TestContext) GetObjects() map[string]Object         { return map[string]Object{} }
+
+func addCoreTag(prop *object.Property) {
+	prop.SetTag("ns", "core")
+}
 
 func TestCoreObjectFactory_GetObject_Singleton(t *testing.T) {
 	propA := object.NewProperty()
 	propB := object.NewProperty()
 	propCore := object.NewProperty()
-
-	_, _ = object.RegisterFactory(factoryB, propB, true)
-	_, _ = object.RegisterFactory(factoryA, propA, true)
-	_, _ = object.RegisterFactory(factoryCore, propCore, true)
+	addCoreTag(propA)
+	addCoreTag(propB)
+	addCoreTag(propCore)
 
 	factory := NewObjectFactory()
+	_, _ = factory.RegisterFactory(factoryB, propB, false)
+	_, _ = factory.RegisterFactory(factoryA, propA, false)
+	_, _ = factory.RegisterFactory(factoryCore, propCore, false)
+
+	// 必须先初始化
+	if err := factory.Init(); err != nil {
+		t.Fatalf("factory Init failed: %v", err)
+	}
+
 	ctx := &TestContext{}
 
 	obj, err := factory.GetObject(ctx, (*coreObj)(nil))
@@ -42,7 +53,7 @@ func TestCoreObjectFactory_GetObject_Singleton(t *testing.T) {
 	if obj == nil || obj.Instance() == nil {
 		t.Error("GetObject should return a valid object")
 	}
-	// 再次获取应返回同一个对象（singleton）
+	// 再���获取应返回同一个对象（singleton）
 	obj2, err := factory.GetObject(ctx, (*coreObj)(nil))
 	if err != nil {
 		t.Fatalf("GetObject failed: %v", err)
@@ -55,9 +66,16 @@ func TestCoreObjectFactory_GetObject_Singleton(t *testing.T) {
 func TestCoreObjectFactory_GetObject_Prototype(t *testing.T) {
 	propB := object.NewProperty()
 	propB.Scope = object.Prototype
-	_, _ = object.RegisterFactory(factoryB, propB, true)
+	addCoreTag(propB)
 
 	factory := NewObjectFactory()
+	_, _ = factory.RegisterFactory(factoryB, propB, false)
+
+	// 必须先初始化
+	if err := factory.Init(); err != nil {
+		t.Fatalf("factory Init failed: %v", err)
+	}
+
 	ctx := &TestContext{}
 
 	obj1, err := factory.GetObject(ctx, (*depB)(nil))
@@ -75,6 +93,7 @@ func TestCoreObjectFactory_GetObject_Prototype(t *testing.T) {
 
 func TestCoreObjectFactory_GetObject_NotFound(t *testing.T) {
 	factory := NewObjectFactory()
+	_ = factory.Init()
 	ctx := &TestContext{}
 	_, err := factory.GetObject(ctx, (*struct{ X int })(nil))
 	if err == nil {
@@ -97,11 +116,18 @@ func TestCoreObjectFactory_getType(t *testing.T) {
 
 func TestCoreObjectFactory_newObject_DependencyInit(t *testing.T) {
 	propB := object.NewProperty()
-	_, _ = object.RegisterFactory(factoryB, propB, true)
-	propA := object.NewProperty()
-	_, _ = object.RegisterFactory(factoryA, propA, true)
+	addCoreTag(propB)
 
 	factory := NewObjectFactory()
+	_, _ = factory.RegisterFactory(factoryB, propB, false)
+	propA := object.NewProperty()
+	addCoreTag(propA)
+	_, _ = factory.RegisterFactory(factoryA, propA, false)
+
+	if err := factory.Init(); err != nil {
+		t.Fatalf("factory Init failed: %v", err)
+	}
+
 	ctx := &TestContext{}
 	obj, err := factory.GetObject(ctx, (*depA)(nil))
 	if err != nil {
@@ -114,25 +140,30 @@ func TestCoreObjectFactory_newObject_DependencyInit(t *testing.T) {
 
 func TestCoreObjectFactory_init_destroy(t *testing.T) {
 	propB := object.NewProperty()
-	_, _ = object.RegisterFactory(factoryB, propB, true)
-	factory := NewObjectFactory().(*CoreObjectFactory)
-	if err := factory.init(); err != nil {
-		t.Fatalf("init failed: %v", err)
+	addCoreTag(propB)
+	factory := NewObjectFactory()
+	_, _ = factory.RegisterFactory(factoryB, propB, false)
+	if err := factory.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
 	}
-	if err := factory.destroy(); err != nil {
-		t.Fatalf("destroy failed: %v", err)
+	if err := factory.Destroy(); err != nil {
+		t.Fatalf("Destroy failed: %v", err)
 	}
 }
 
 func TestCoreObjectFactory_getDefinition(t *testing.T) {
 	propB := object.NewProperty()
-	_, _ = object.RegisterFactory(factoryB, propB, true)
-	factory := NewObjectFactory().(*CoreObjectFactory)
-	def, err := factory.getDefinition(object.GenerateDefinitionName(reflect.TypeOf((*depB)(nil))))
+	addCoreTag(propB)
+	factory := NewObjectFactory()
+	_, _ = factory.RegisterFactory(factoryB, propB, false)
+	if err := factory.Init(); err != nil {
+		t.Fatalf("factory Init failed: %v", err)
+	}
+	def, err := factory.(*CoreObjectFactory).getDefinition(object.GenerateDefinitionName(reflect.TypeOf((*depB)(nil))))
 	if err != nil || def == nil {
 		t.Error("getDefinition should return definition")
 	}
-	def2, err := factory.getDefinition("notfound")
+	def2, err := factory.(*CoreObjectFactory).getDefinition("notfound")
 	if err == nil || def2 != nil {
 		t.Error("getDefinition should fail for unknown name")
 	}

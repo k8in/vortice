@@ -18,7 +18,7 @@ func makeTestDefinition(name, factoryName string, tags []string) *Definition {
 }
 
 func TestDefinitionRegistry_Register_DuplicateFactory(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	def1 := makeTestDefinition("obj1", "factory1", []string{"tag"})
 	def2 := makeTestDefinition("obj2", "factory1", []string{"tag"})
 	if err := reg.register(def1, false); err != nil {
@@ -30,7 +30,7 @@ func TestDefinitionRegistry_Register_DuplicateFactory(t *testing.T) {
 }
 
 func TestDefinitionRegistry_Register_Unique(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	def1 := makeTestDefinition("obj1", "factory1", []string{"tag"})
 	def2 := makeTestDefinition("obj1", "factory2", []string{"tag"})
 	if err := reg.register(def1, true); err != nil {
@@ -47,7 +47,7 @@ func TestDefinitionRegistry_Register_Unique(t *testing.T) {
 }
 
 func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	def := makeTestDefinition("obj", "factory", []string{"tag"})
 	if err := reg.register(def, false); err != nil {
 		t.Fatalf("register failed: %v", err)
@@ -63,7 +63,7 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 }
 
 func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	def := makeTestDefinition("obj", "factory", []string{"tag"})
 	if err := reg.register(def, false); err != nil {
 		t.Fatalf("register failed: %v", err)
@@ -79,7 +79,7 @@ func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
 }
 
 func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{"tag1"})
 	defB := makeTestDefinition("A", "fb", []string{"tag2"})
 	defC := makeTestDefinition("B", "fc", []string{"tag1"})
@@ -109,7 +109,7 @@ func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
 }
 
 func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{"tag1"})
 	defB := makeTestDefinition("B", "fb", []string{"tag2"})
 	defC := makeTestDefinition("C", "fc", []string{"tag1"})
@@ -138,10 +138,10 @@ func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
 }
 
 func TestDefinitionRegistry_SortAndCheck_Cycle(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{})
 	defB := makeTestDefinition("B", "fb", []string{})
-	defA.dependsOn = []string{"B"} // 依赖名称用 name
+	defA.dependsOn = []string{"B"}
 	defB.dependsOn = []string{"A"}
 	_ = reg.register(defA, false)
 	_ = reg.register(defB, false)
@@ -152,9 +152,9 @@ func TestDefinitionRegistry_SortAndCheck_Cycle(t *testing.T) {
 }
 
 func TestDefinitionRegistry_SortAndCheck_MissingDep(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{})
-	defA.dependsOn = []string{"B"} // ���赖名称用 name
+	defA.dependsOn = []string{"B"}
 	_ = reg.register(defA, false)
 	err := reg.sortAndCheck()
 	if err == nil {
@@ -163,10 +163,10 @@ func TestDefinitionRegistry_SortAndCheck_MissingDep(t *testing.T) {
 }
 
 func TestDefinitionRegistry_Init_SortAndCheck(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{})
 	defB := makeTestDefinition("B", "fb", []string{})
-	defA.dependsOn = []string{"B"} // 依赖名称用 name
+	defA.dependsOn = []string{"B"}
 	defB.dependsOn = []string{}
 	_ = reg.register(defA, false)
 	_ = reg.register(defB, false)
@@ -177,27 +177,18 @@ func TestDefinitionRegistry_Init_SortAndCheck(t *testing.T) {
 	if len(reg.inSeq) != 2 {
 		t.Errorf("Init should record registered definitions, got %d", len(reg.inSeq))
 	}
-	// Registered order should be topologically sorted
-	// defA 依赖 defB，defB 应在 defA 之前
 	if reg.inSeq[0] != "fb" || reg.inSeq[1] != "fa" {
 		t.Errorf("Registered order incorrect: %v", reg.inSeq)
 	}
 }
 
 func TestDefinitionRegistry_Init_SortAndCheck_Complex(t *testing.T) {
-	reg := newDefinitionRegistry()
+	reg := NewDefinitionRegistry()
 	defA1 := makeTestDefinition("A", "fa1", []string{})
 	defA2 := makeTestDefinition("A", "fa2", []string{})
 	defB := makeTestDefinition("B", "fb", []string{})
 	defC := makeTestDefinition("C", "fc", []string{})
 	defD := makeTestDefinition("D", "fd", []string{})
-
-	// 依赖关系：
-	// fa1 depends on B, C
-	// fa2 depends on B
-	// fb depends on D
-	// fc depends on D
-	// fd 无依赖
 
 	defA1.dependsOn = []string{"B", "C"}
 	defA2.dependsOn = []string{"B"}
@@ -219,9 +210,6 @@ func TestDefinitionRegistry_Init_SortAndCheck_Complex(t *testing.T) {
 		t.Errorf("Init should record registered definitions, got %d", len(reg.inSeq))
 	}
 
-	// 检查拓扑排序顺序
-	// fd 必须在 fb、fc、fa1、fa2 之前
-	// fb、fc 必须在 fa1、fa2 之前
 	index := map[string]int{}
 	for i, v := range reg.inSeq {
 		index[v] = i
