@@ -7,23 +7,23 @@ import (
 
 // --- AI GENERATED CODE BEGIN ---
 
-func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
-	newTestDefinition := func(name string) *Definition {
-		return &Definition{
-			name:      name,
-			typ:       reflect.TypeOf(""),
-			factory:   &Factory{name: name + "_factory"},
-			dependsOn: []string{},
-			methods:   &Methods{},
-			ns:        Core,
-			scope:     Singleton,
-			tags:      []string{"tag"},
-		}
+func makeTestDefinition(name string, factoryName string, ns Namespace, tags []string) *Definition {
+	return &Definition{
+		name:      name,
+		typ:       reflect.TypeOf(""),
+		factory:   &Factory{name: factoryName},
+		dependsOn: []string{},
+		methods:   &Methods{},
+		ns:        ns,
+		scope:     Singleton,
+		tags:      tags,
 	}
+}
 
+func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	reg := newDefinitionRegistry()
-	def1 := newTestDefinition("obj1")
-	def2 := newTestDefinition("obj2")
+	def1 := makeTestDefinition("obj1", "obj1_factory", NSCore, []string{"tag"})
+	def2 := makeTestDefinition("obj2", "obj2_factory", NSCore, []string{"tag"})
 
 	// Register should succeed
 	if err := reg.register(def1); err != nil {
@@ -34,8 +34,7 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	}
 
 	// Duplicate factory should fail
-	dupDef := newTestDefinition("obj3")
-	dupDef.factory = def1.factory
+	dupDef := makeTestDefinition("obj3", "obj1_factory", NSCore, []string{"tag"})
 	if err := reg.register(dupDef); err == nil {
 		t.Error("register duplicate factory should fail")
 	}
@@ -47,28 +46,15 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	}
 
 	// Register after lock should fail
-	def4 := newTestDefinition("obj4")
+	def4 := makeTestDefinition("obj4", "obj4_factory", NSCore, []string{"tag"})
 	if err := reg.register(def4); err == nil {
 		t.Error("register after lock should fail")
 	}
 }
 
 func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
-	newTestDefinition := func(name string) *Definition {
-		return &Definition{
-			name:      name,
-			typ:       reflect.TypeOf(""),
-			factory:   &Factory{name: name + "_factory"},
-			dependsOn: []string{},
-			methods:   &Methods{},
-			ns:        Core,
-			scope:     Singleton,
-			tags:      []string{"tag"},
-		}
-	}
-
 	reg := newDefinitionRegistry()
-	def := newTestDefinition("obj")
+	def := makeTestDefinition("obj", "obj_factory", NSCore, []string{"tag"})
 	if err := reg.register(def); err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -114,23 +100,11 @@ func TestRegisterFactory_Duplicate(t *testing.T) {
 	}
 }
 
-func TestLockDefinitionRegistry(t *testing.T) {
-	type dummyDep struct{}
-	type dummyStruct struct{}
-	factory := func(a dummyDep) dummyStruct { return dummyStruct{} }
-	prop := NewProperty()
-	LockDefinitionRegistry()
-	_, err := RegisterFactory(factory, prop)
-	if err == nil {
-		t.Error("RegisterFactory should fail after registry is locked")
-	}
-}
-
 func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
 	reg := newDefinitionRegistry()
-	defA := &Definition{name: "A", typ: reflect.TypeOf(""), factory: &Factory{name: "fa"}, dependsOn: []string{}, methods: &Methods{}, ns: Core, scope: Singleton, tags: []string{"tag"}}
-	defB := &Definition{name: "A", typ: reflect.TypeOf(""), factory: &Factory{name: "fb"}, dependsOn: []string{}, methods: &Methods{}, ns: Core, scope: Singleton, tags: []string{"tag"}}
-	defC := &Definition{name: "B", typ: reflect.TypeOf(""), factory: &Factory{name: "fc"}, dependsOn: []string{}, methods: &Methods{}, ns: Core, scope: Singleton, tags: []string{"tag"}}
+	defA := makeTestDefinition("A", "fa", NSCore, []string{"tag1"})
+	defB := makeTestDefinition("A", "fb", NSCore, []string{"tag2"})
+	defC := makeTestDefinition("B", "fc", NSCore, []string{"tag1"})
 	_ = reg.register(defA)
 	_ = reg.register(defB)
 	_ = reg.register(defC)
@@ -142,33 +116,36 @@ func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
 		t.Error("GetDefinition with filter failed")
 	}
 
+	// Multiple filters: factory name == "fa" and tag == "tag1"
+	tagFilter := TagFilter("tag1")
+	defsMulti := reg.GetDefinition("A", filter, tagFilter)
+	if len(defsMulti) != 1 || defsMulti[0].factory.name != "fa" {
+		t.Error("GetDefinition with multiple filters failed")
+	}
+
 	// No filter: should return all
-	defsAll := reg.GetDefinition("A", nil)
+	defsAll := reg.GetDefinition("A")
 	if len(defsAll) != 2 {
 		t.Error("GetDefinition without filter failed")
 	}
 }
 
-func TestDefinitionRegistry_GetDefinitionNames_Filter(t *testing.T) {
+func TestNamespaceFilter_TagFilter(t *testing.T) {
 	reg := newDefinitionRegistry()
-	defA := &Definition{name: "A", typ: reflect.TypeOf(""), factory: &Factory{name: "fa"}, dependsOn: []string{}, methods: &Methods{}, ns: Core, scope: Singleton, tags: []string{"tag"}}
-	defB := &Definition{name: "B", typ: reflect.TypeOf(""), factory: &Factory{name: "fb"}, dependsOn: []string{}, methods: &Methods{}, ns: Core, scope: Singleton, tags: []string{"tag"}}
-	defC := &Definition{name: "C", typ: reflect.TypeOf(""), factory: &Factory{name: "fc"}, dependsOn: []string{}, methods: &Methods{}, ns: Core, scope: Singleton, tags: []string{"tag"}}
+	defA := makeTestDefinition("A", "fa", "ns1", []string{"tag1"})
+	defB := makeTestDefinition("A", "fb", "ns2", []string{"tag2"})
 	_ = reg.register(defA)
 	_ = reg.register(defB)
-	_ = reg.register(defC)
 
-	// Filter: only factory name == "fb"
-	filter := func(def *Definition) bool { return def.Factory().Name() == "fb" }
-	names := reg.GetDefinitionNames(filter)
-	if len(names) != 1 || names[0] != "B" {
-		t.Error("GetDefinitionNames with filter failed")
+	nsFilter := NamespaceFilter("ns1")
+	tagFilter := TagFilter("tag2")
+	defsNS := reg.GetDefinition("A", nsFilter)
+	if len(defsNS) != 1 || defsNS[0].ns != "ns1" {
+		t.Error("NamespaceFilter failed")
 	}
-
-	// No filter: should return all names
-	namesAll := reg.GetDefinitionNames(nil)
-	if len(namesAll) != 3 {
-		t.Error("GetDefinitionNames without filter failed")
+	defsTag := reg.GetDefinition("A", tagFilter)
+	if len(defsTag) != 1 || defsTag[0].tags[0] != "tag2" {
+		t.Error("TagFilter failed")
 	}
 }
 

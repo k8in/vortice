@@ -47,7 +47,7 @@ func newTestDefinitionForObject() *object.Definition {
 func TestCoreObject_Lifecycle(t *testing.T) {
 	comp := &testComp{}
 	def := newTestDefinitionForObject()
-	obj := NewCoreObject(def, reflect.ValueOf(comp), comp)
+	obj := NewObject(def, reflect.ValueOf(comp), comp)
 
 	// Test Init
 	if err := obj.Init(); err != nil {
@@ -85,7 +85,7 @@ func TestCoreObject_Lifecycle(t *testing.T) {
 func TestCoreObject_ConcurrentAccess(t *testing.T) {
 	comp := &testComp{}
 	def := newTestDefinitionForObject()
-	obj := NewCoreObject(def, reflect.ValueOf(comp), comp)
+	obj := NewObject(def, reflect.ValueOf(comp), comp)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
@@ -121,7 +121,7 @@ func TestCoreObject_DefinitionFields(t *testing.T) {
 	if def.Methods() == nil {
 		t.Error("Definition.Methods should not be nil")
 	}
-	if def.Namespace() != object.Core {
+	if def.Namespace() != object.NSCore {
 		t.Error("Definition.Namespace should be Core by default")
 	}
 	if def.Scope() != object.Singleton {

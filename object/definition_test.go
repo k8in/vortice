@@ -164,7 +164,7 @@ func TestProperty_GetTagsCopy(t *testing.T) {
 
 func TestProperty_DefaultValues(t *testing.T) {
 	prop := NewProperty()
-	if prop.Namespace != Core {
+	if prop.Namespace != NSCore {
 		t.Error("Property default Namespace should be Core")
 	}
 	if prop.Scope != Singleton {

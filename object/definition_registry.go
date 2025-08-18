@@ -27,10 +27,9 @@ func RegisterFactory(fn any, prop *Property) (*Definition, error) {
 	return def, nil
 }
 
-// LockDefinitionRegistry locks the DefinitionRegistry and logs the action,
-// preventing further modifications.
-func LockDefinitionRegistry() {
-	dr.Lock()
+// GetDefinitionRegistry returns the global DefinitionRegistry instance.
+func GetDefinitionRegistry() *DefinitionRegistry {
+	return dr
 }
 
 // DefinitionRegistry manages a collection of component definitions and their associated factories,
@@ -61,35 +60,45 @@ func (dr *DefinitionRegistry) Lock() {
 // DefinitionFilter defines a filter function for Definition.
 type DefinitionFilter func(*Definition) bool
 
-// GetDefinition returns all definitions with the given name, optionally filtered by filter.
-// If filter is nil, returns all definitions for the name.
-func (dr *DefinitionRegistry) GetDefinition(name string, filter DefinitionFilter) []*Definition {
+// NamespaceFilter returns a DefinitionFilter that matches Definitions with the specified namespace.
+func NamespaceFilter(ns Namespace) DefinitionFilter {
+	return func(def *Definition) bool {
+		return def.Namespace() == ns
+	}
+}
+
+// TagFilter returns a DefinitionFilter that matches Definitions with the specified tag.
+func TagFilter(match string) DefinitionFilter {
+	return func(def *Definition) bool {
+		for _, tag := range def.Tags() {
+			if tag == match {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// GetDefinition retrieves definitions by name, optionally applying filters to refine the results.
+func (dr *DefinitionRegistry) GetDefinition(name string, filters ...DefinitionFilter) []*Definition {
 	defs := dr.entries[name]
-	if filter == nil {
+	if len(filters) == 0 {
 		return defs
 	}
 	var result []*Definition
 	for _, def := range defs {
-		if filter(def) {
+		matched := true
+		for _, filter := range filters {
+			if filter != nil && !filter(def) {
+				matched = false
+				break
+			}
+		}
+		if matched {
 			result = append(result, def)
 		}
 	}
 	return result
-}
-
-// GetDefinitionNames returns all definition names, optionally filtered by filter.
-// If filter is nil, returns all names.
-func (dr *DefinitionRegistry) GetDefinitionNames(filter DefinitionFilter) []string {
-	var names []string
-	for name, defs := range dr.entries {
-		for _, def := range defs {
-			if filter == nil || filter(def) {
-				names = append(names, name)
-				break // only add name once
-			}
-		}
-	}
-	return names
 }
 
 // register adds a new Definition to the registry, ensuring no duplicate factory functions and not in read-only mode.

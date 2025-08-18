@@ -18,8 +18,8 @@ const (
 	Singleton Scope = "Singleton"
 	// Prototype indicates that a component should be instantiated each time it is requested.
 	Prototype Scope = "Prototype"
-	// Core represents the core namespace used to identify the main or default category within the system.
-	Core Namespace = "Core"
+	// NSCore represents the core namespace used to identify the main or default category within the system.
+	NSCore Namespace = "Core"
 )
 
 // ErrParseDefinition is the error returned when there's a failure in parsing the definition.
@@ -135,7 +135,7 @@ type Property struct {
 // including Core namespace and Prototype scope.
 func NewProperty() *Property {
 	return &Property{
-		Namespace:   Core,
+		Namespace:   NSCore,
 		Scope:       Singleton,
 		Desc:        "",
 		LazyInit:    true,
@@ -236,7 +236,7 @@ func (p *Parser) checkInputAndSet() error {
 		}
 		p.argn = p.rt.NumIn()
 		p.argv = append(p.argv, reflect.ValueOf(argType))
-		p.deps = append(p.deps, p.generateDefinitionName(Core, argType))
+		p.deps = append(p.deps, p.generateDefinitionName(NSCore, argType))
 	}
 	return nil
 }

@@ -47,8 +47,8 @@ type CoreObject struct {
 	init  *atomic.Bool       // initialization flag
 }
 
-// NewCoreObject creates a new CoreObject with the given definition, reflect value, and instance.
-func NewCoreObject(def *object.Definition, rv reflect.Value, ins any) *CoreObject {
+// NewObject creates a new Object with the given definition, reflect value, and instance.
+func NewObject(def *object.Definition, rv reflect.Value, ins any) Object {
 	return &CoreObject{
 		def:   def,
 		value: rv,
