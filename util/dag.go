@@ -17,9 +17,6 @@ func NewDAG() *DAG {
 // deps: names of nodes this node depends on
 // Note: No deduplication, duplicate dependencies are allowed; no self-loop or missing dependency check.
 func (dag *DAG) AddNode(node string, deps ...string) {
-	if deps == nil || len(deps) == 0 {
-		return
-	}
 	dag.nodes[node] = append(dag.nodes[node], deps...)
 }
 
@@ -38,7 +35,7 @@ func (dag *DAG) Sort() ([]string, error) {
 			inDegree[dep]++
 		}
 	}
-	
+
 	var queue []string
 	for k, v := range inDegree {
 		if v == 0 {

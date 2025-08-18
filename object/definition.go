@@ -7,8 +7,6 @@ import (
 )
 
 type (
-	// Namespace represents a unique identifier for a specific domain or category within the system.
-	Namespace string
 	// Scope defines the lifecycle and visibility boundaries of a component within the system.
 	Scope string
 )
@@ -18,27 +16,24 @@ const (
 	Singleton Scope = "Singleton"
 	// Prototype indicates that a component should be instantiated each time it is requested.
 	Prototype Scope = "Prototype"
-	// NSCore represents the core namespace used to identify the main or default category within the system.
-	NSCore Namespace = "Core"
 )
 
 // ErrParseDefinition is the error returned when there's a failure in parsing the definition.
 var ErrParseDefinition = errors.New("failed to parse definition")
 
 // GenerateDefinitionName creates a unique name for a definition based on the provided namespace and argument type.
-func GenerateDefinitionName(ns Namespace, argType reflect.Type) string {
-	return fmt.Sprintf("%s:%s", ns, generateReflectionName(argType))
+func GenerateDefinitionName(argType reflect.Type) string {
+	return generateReflectionName(argType)
 }
 
-// Definition encapsulates the details of a component including its namespace, name, type,
+// Definition encapsulates the details of a component including its name, type,
 // factory, dependencies, methods, scope, description, and lazy initialization flag.
 type Definition struct {
 	name        string
 	typ         reflect.Type
 	factory     *Factory
-	dependsOn   []string // dependsOn holds the list of component names that this component depends on.
+	dependsOn   []string
 	methods     *Methods
-	ns          Namespace
 	scope       Scope
 	desc        string
 	lazyInit    bool
@@ -88,11 +83,6 @@ func (d *Definition) Methods() *Methods {
 	return d.methods
 }
 
-// Namespace returns the namespace of the component definition.
-func (d *Definition) Namespace() Namespace {
-	return d.ns
-}
-
 // Scope returns the scope of the component definition.
 func (d *Definition) Scope() Scope {
 	return d.scope
@@ -125,15 +115,14 @@ func (d *Definition) Tags() []string {
 }
 
 // String returns a string representation of the Definition,
-// including its namespace, name, and tags.
+// including its name, type, and tags.
 func (d *Definition) String() string {
-	return fmt.Sprintf("%s<%s %s %v>", d.ns, d.Name(), d.typ.Kind(), d.Tags())
+	return fmt.Sprintf("<%s %s %v>", d.Name(), d.typ.Kind(), d.Tags())
 }
 
-// Property represents a configuration property with namespace, scope, description,
+// Property represents a configuration property with scope, description,
 // and lazy initialization flag.
 type Property struct {
-	Namespace   Namespace
 	Scope       Scope
 	Desc        string
 	LazyInit    bool
@@ -141,11 +130,9 @@ type Property struct {
 	tags        []string
 }
 
-// NewProperty creates a new Property instance with default values,
-// including Core namespace and Prototype scope.
+// NewProperty creates a new Property instance with default values.
 func NewProperty() *Property {
 	return &Property{
-		Namespace:   NSCore,
 		Scope:       Singleton,
 		Desc:        "",
 		LazyInit:    true,
@@ -220,7 +207,6 @@ func (p *Parser) newDefinition(prop *Property) *Definition {
 		factory:     newFactory(p.rv, p.argv, p.argn),
 		dependsOn:   p.deps,
 		methods:     newMethods(p.obj),
-		ns:          prop.Namespace,
 		scope:       prop.Scope,
 		lazyInit:    prop.LazyInit,
 		autoStartup: prop.AutoStartup,
@@ -230,8 +216,8 @@ func (p *Parser) newDefinition(prop *Property) *Definition {
 
 // generateDefinitionName generates a unique name for the definition based
 // on the namespace and argument type
-func (p *Parser) generateDefinitionName(ns Namespace, argType reflect.Type) string {
-	return GenerateDefinitionName(ns, argType)
+func (p *Parser) generateDefinitionName(argType reflect.Type) string {
+	return GenerateDefinitionName(argType)
 }
 
 // checkInputAndSet checks the input function and sets the argument values
@@ -246,7 +232,7 @@ func (p *Parser) checkInputAndSet() error {
 		}
 		p.argn = p.rt.NumIn()
 		p.argv = append(p.argv, reflect.ValueOf(argType))
-		p.deps = append(p.deps, p.generateDefinitionName(NSCore, argType))
+		p.deps = append(p.deps, p.generateDefinitionName(argType))
 	}
 	return nil
 }

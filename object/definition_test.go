@@ -14,7 +14,6 @@ func newTestDefinition() *Definition {
 		factory:     &Factory{},
 		dependsOn:   []string{"a", "b"},
 		methods:     &Methods{},
-		ns:          Namespace("default"),
 		scope:       Scope("singleton"),
 		desc:        "desc",
 		lazyInit:    true,
@@ -36,9 +35,6 @@ func TestDefinition_Getters(t *testing.T) {
 	}
 	if def.Methods() == nil {
 		t.Error("Methods getter failed")
-	}
-	if def.Namespace() != Namespace("default") {
-		t.Error("Namespace getter failed")
 	}
 	if def.Scope() != Scope("singleton") {
 		t.Error("Scope getter failed")
@@ -164,9 +160,6 @@ func TestProperty_GetTagsCopy(t *testing.T) {
 
 func TestProperty_DefaultValues(t *testing.T) {
 	prop := NewProperty()
-	if prop.Namespace != NSCore {
-		t.Error("Property default Namespace should be Core")
-	}
 	if prop.Scope != Singleton {
 		t.Error("Property default Scope should be Singleton")
 	}

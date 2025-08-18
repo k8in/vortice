@@ -121,9 +121,6 @@ func TestCoreObject_DefinitionFields(t *testing.T) {
 	if def.Methods() == nil {
 		t.Error("Definition.Methods should not be nil")
 	}
-	if def.Namespace() != object.NSCore {
-		t.Error("Definition.Namespace should be Core by default")
-	}
 	if def.Scope() != object.Singleton {
 		t.Error("Definition.Scope should be Singleton by default")
 	}

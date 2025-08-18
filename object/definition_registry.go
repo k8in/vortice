@@ -4,6 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+
+	"vortice/util"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -35,13 +39,6 @@ func GetDefinitionRegistry() *DefinitionRegistry {
 // DefinitionFilter defines a filter function for Definition.
 type DefinitionFilter func(*Definition) bool
 
-// NamespaceFilter returns a DefinitionFilter that matches Definitions with the specified namespace.
-func NamespaceFilter(ns Namespace) DefinitionFilter {
-	return func(def *Definition) bool {
-		return def.Namespace() == ns
-	}
-}
-
 // ScopeFilter returns a DefinitionFilter that matches Definitions with the specified scope.
 func ScopeFilter(scope Scope) DefinitionFilter {
 	return func(def *Definition) bool {
@@ -64,9 +61,10 @@ func TagFilter(match string) DefinitionFilter {
 // DefinitionRegistry manages a collection of component definitions and their associated factories,
 // supporting read-only state.
 type DefinitionRegistry struct {
-	entries   map[string][]*Definition
-	factories map[string]*Definition
-	readonly  *atomic.Bool
+	readonly   *atomic.Bool
+	entries    map[string][]*Definition
+	factories  map[string]*Definition
+	registered []string
 }
 
 // newDefinitionRegistry creates and returns a new DefinitionRegistry with
@@ -75,15 +73,20 @@ func newDefinitionRegistry() *DefinitionRegistry {
 	readonly := &atomic.Bool{}
 	readonly.Store(false)
 	return &DefinitionRegistry{
-		entries:   map[string][]*Definition{},
-		factories: map[string]*Definition{},
-		readonly:  readonly,
+		readonly:   readonly,
+		entries:    map[string][]*Definition{},
+		factories:  map[string]*Definition{},
+		registered: []string{},
 	}
 }
 
-// Lock sets the DefinitionRegistry to a read-only state, preventing further modifications.
-func (dr *DefinitionRegistry) Lock() {
+// Init locks the DefinitionRegistry, sorts and checks definitions for cycles, and prepares it for use.
+func (dr *DefinitionRegistry) Init() {
 	dr.readonly.Store(true)
+	util.Logger().Info("The DefinitionRegistry has already been locked")
+	if err := dr.sortAndCheck(); err != nil {
+		util.Logger().Panic("init", zap.Error(err))
+	}
 }
 
 // GetDefinition retrieves definitions by name, optionally applying filters to refine the results.
@@ -137,5 +140,51 @@ func (dr *DefinitionRegistry) register(def *Definition) error {
 	}
 	dr.factories[fid] = def
 	dr.entries[def.Name()] = append(dr.entries[def.Name()], def)
+	dr.registered = append(dr.registered, fid)
+	return nil
+}
+
+/*
+理论上此时所有的组件依赖项应已被注册，并且彼此没有依赖环（构造注入模式）
+
+系统初始化阶段要提前检测：
+1）依赖组件忘记注册
+2）存在依赖环（GO 包依赖机制在编译期会检查这种情况，但是包内依赖环无法避免）
+
+	type ServiceA interface {
+		New(ServiceB)
+	}
+
+	type ServiceB interface {
+		New(ServiceA)
+	}
+
+// 为了简化系统设计，不允许依赖环这种代码设计
+*/
+func (dr *DefinitionRegistry) sortAndCheck() error {
+	dag, defs := util.NewDAG(), dr.factories
+	for _, def := range defs {
+		dag.AddNode(def.Name(), def.DependsOn()...)
+	}
+	sorted, err := dag.Sort()
+	if err != nil {
+		return err
+	}
+	registered := []string{}
+	for _, name := range sorted {
+		// 检查是否已注册
+		defs, ok := dr.entries[name]
+		if !ok {
+			return fmt.Errorf("%s validation failed: definition not found", name)
+		}
+		for _, def := range defs {
+			util.Logger().Info("validation passed",
+				zap.String("definition", def.Name()),
+				zap.String("factory", def.Factory().Name()),
+				zap.Int("dependsOn", len(def.DependsOn())))
+			registered = append(registered, def.Factory().Name())
+		}
+	}
+	dr.registered = registered
 	return nil
 }
