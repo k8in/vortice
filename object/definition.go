@@ -25,6 +25,11 @@ const (
 // ErrParseDefinition is the error returned when there's a failure in parsing the definition.
 var ErrParseDefinition = errors.New("failed to parse definition")
 
+// GenerateDefinitionName creates a unique name for a definition based on the provided namespace and argument type.
+func GenerateDefinitionName(ns Namespace, argType reflect.Type) string {
+	return fmt.Sprintf("%s:%s", ns, generateReflectionName(argType))
+}
+
 // Definition encapsulates the details of a component including its namespace, name, type,
 // factory, dependencies, methods, scope, description, and lazy initialization flag.
 type Definition struct {
@@ -45,6 +50,11 @@ type Definition struct {
 func (d *Definition) IsValid() bool {
 	return d.name != "" && d.typ != nil && d.factory != nil &&
 		d.dependsOn != nil && d.methods != nil && d.tags != nil
+}
+
+// ID returns the name of the factory function associated with the component definition.
+func (d *Definition) ID() string {
+	return d.Factory().Name()
 }
 
 // Name returns the name of the component definition.
@@ -221,7 +231,7 @@ func (p *Parser) newDefinition(prop *Property) *Definition {
 // generateDefinitionName generates a unique name for the definition based
 // on the namespace and argument type
 func (p *Parser) generateDefinitionName(ns Namespace, argType reflect.Type) string {
-	return fmt.Sprintf("%s:%s", ns, generateReflectionName(argType))
+	return GenerateDefinitionName(ns, argType)
 }
 
 // checkInputAndSet checks the input function and sets the argument values

@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// --- AI GENERATED CODE BEGIN ---
-
 func makeTestDefinition(name string, factoryName string, ns Namespace, tags []string) *Definition {
 	return &Definition{
 		name:      name,
@@ -25,7 +23,6 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	def1 := makeTestDefinition("obj1", "obj1_factory", NSCore, []string{"tag"})
 	def2 := makeTestDefinition("obj2", "obj2_factory", NSCore, []string{"tag"})
 
-	// Register should succeed
 	if err := reg.register(def1); err != nil {
 		t.Fatalf("register def1 failed: %v", err)
 	}
@@ -33,19 +30,16 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 		t.Fatalf("register def2 failed: %v", err)
 	}
 
-	// Duplicate factory should fail
 	dupDef := makeTestDefinition("obj3", "obj1_factory", NSCore, []string{"tag"})
 	if err := reg.register(dupDef); err == nil {
 		t.Error("register duplicate factory should fail")
 	}
 
-	// Lock registry
 	reg.Lock()
 	if !reg.readonly.Load() {
 		t.Error("registry should be readonly after Lock")
 	}
 
-	// Register after lock should fail
 	def4 := makeTestDefinition("obj4", "obj4_factory", NSCore, []string{"tag"})
 	if err := reg.register(def4); err == nil {
 		t.Error("register after lock should fail")
@@ -58,15 +52,13 @@ func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
 	if err := reg.register(def); err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
-	// Check entries
 	list, ok := reg.entries[def.Name()]
 	if !ok || len(list) != 1 || list[0] != def {
 		t.Error("entries not updated correctly")
 	}
-	// Check factories
 	fid := def.Factory().Name()
-	name, ok := reg.factories[fid]
-	if !ok || name != def.Name() {
+	gotDef, ok := reg.factories[fid]
+	if !ok || gotDef != def {
 		t.Error("factories not updated correctly")
 	}
 }
@@ -109,21 +101,18 @@ func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
 	_ = reg.register(defB)
 	_ = reg.register(defC)
 
-	// Filter: only factory name == "fa"
 	filter := func(def *Definition) bool { return def.Factory().Name() == "fa" }
 	defs := reg.GetDefinition("A", filter)
 	if len(defs) != 1 || defs[0].factory.name != "fa" {
 		t.Error("GetDefinition with filter failed")
 	}
 
-	// Multiple filters: factory name == "fa" and tag == "tag1"
 	tagFilter := TagFilter("tag1")
 	defsMulti := reg.GetDefinition("A", filter, tagFilter)
 	if len(defsMulti) != 1 || defsMulti[0].factory.name != "fa" {
 		t.Error("GetDefinition with multiple filters failed")
 	}
 
-	// No filter: should return all
 	defsAll := reg.GetDefinition("A")
 	if len(defsAll) != 2 {
 		t.Error("GetDefinition without filter failed")
@@ -149,4 +138,38 @@ func TestNamespaceFilter_TagFilter(t *testing.T) {
 	}
 }
 
-// --- AI GENERATED CODE END ---
+func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
+	reg := newDefinitionRegistry()
+	defA := makeTestDefinition("A", "fa", NSCore, []string{"tag1"})
+	defB := makeTestDefinition("B", "fb", NSCore, []string{"tag2"})
+	defC := makeTestDefinition("C", "fc", NSCore, []string{"tag1"})
+	_ = reg.register(defA)
+	_ = reg.register(defB)
+	_ = reg.register(defC)
+
+	// No filter: should return all definitions
+	allDefs := reg.GetDefinitions()
+	if len(allDefs) != 3 {
+		t.Errorf("GetDefinitions without filter failed, got %d", len(allDefs))
+	}
+
+	// Filter by tag
+	tagFilter := TagFilter("tag1")
+	tagDefs := reg.GetDefinitions(tagFilter)
+	if len(tagDefs) != 2 {
+		t.Errorf("GetDefinitions with tag filter failed, got %d", len(tagDefs))
+	}
+
+	// Filter by namespace
+	nsFilter := NamespaceFilter(NSCore)
+	nsDefs := reg.GetDefinitions(nsFilter)
+	if len(nsDefs) != 3 {
+		t.Errorf("GetDefinitions with namespace filter failed, got %d", len(nsDefs))
+	}
+
+	// Multiple filters
+	multiDefs := reg.GetDefinitions(nsFilter, tagFilter)
+	if len(multiDefs) != 2 {
+		t.Errorf("GetDefinitions with multiple filters failed, got %d", len(multiDefs))
+	}
+}

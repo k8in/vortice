@@ -2,26 +2,29 @@ package util
 
 import "fmt"
 
-// DAG 表示一个有向无环图（Directed Acyclic Graph）
+// DAG represents a Directed Acyclic Graph.
 type DAG struct {
 	nodes map[string][]string
 }
 
-// NewDAG 创建一个新的 DAG 实例
+// NewDAG creates a new DAG instance.
 func NewDAG() *DAG {
 	return &DAG{nodes: make(map[string][]string)}
 }
 
-// AddNode 添加一个节点及其依赖关系
-// node: 节点名称
-// deps: 该节点依赖的其他节点名称
-// 注意：不会去重，允许重复依赖；不会检测自环和缺失依赖
+// AddNode adds a node and its dependencies.
+// node: node name
+// deps: names of nodes this node depends on
+// Note: No deduplication, duplicate dependencies are allowed; no self-loop or missing dependency check.
 func (dag *DAG) AddNode(node string, deps ...string) {
+	if deps == nil || len(deps) == 0 {
+		return
+	}
 	dag.nodes[node] = append(dag.nodes[node], deps...)
 }
 
-// Sort 对 DAG 进行拓扑排序
-// 返回：排序后的节点列表（依赖优先），或检测到环时报错
+// Sort performs topological sorting on the DAG.
+// Returns: sorted node list (dependency first), or error if a cycle is detected.
 func (dag *DAG) Sort() ([]string, error) {
 	inDegree := map[string]int{}
 	for node := range dag.nodes {
@@ -29,13 +32,13 @@ func (dag *DAG) Sort() ([]string, error) {
 	}
 	for _, deps := range dag.nodes {
 		for _, dep := range deps {
-			// 1.不会对dep去重，重复依赖会导致入度统计增加，但不影响最终结果
-			// 2.如果 dep 没有被显式 AddNode，则此处会自动补全到 inDegree，
-			// 但 dag.nodes[dep] 不会有依赖内容（即不会有自己的依赖列表）
+			// 1. No deduplication for dep, duplicate dependencies will increase in-degree, but do not affect the final result.
+			// 2. If dep is not explicitly added via AddNode, it will be automatically added to inDegree here,
+			// but dag.nodes[dep] will not have its own dependency list.
 			inDegree[dep]++
 		}
 	}
-
+	
 	var queue []string
 	for k, v := range inDegree {
 		if v == 0 {
@@ -61,11 +64,11 @@ func (dag *DAG) Sort() ([]string, error) {
 		return nil, fmt.Errorf("cycle detected or missing dependency in the DAG")
 	}
 
-	// 结果经过 reverse，保证依赖优先
+	// The result is reversed to ensure dependency-first order.
 	return dag.reverse(result), nil
 }
 
-// reverse 反转排序结果，使依赖优先
+// reverse reverses the sorted result to ensure dependency-first order.
 func (dag *DAG) reverse(result []string) []string {
 	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
 		result[i], result[j] = result[j], result[i]

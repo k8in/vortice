@@ -32,31 +32,6 @@ func GetDefinitionRegistry() *DefinitionRegistry {
 	return dr
 }
 
-// DefinitionRegistry manages a collection of component definitions and their associated factories,
-// supporting read-only state.
-type DefinitionRegistry struct {
-	entries   map[string][]*Definition
-	factories map[string]string
-	readonly  *atomic.Bool
-}
-
-// newDefinitionRegistry creates and returns a new DefinitionRegistry with
-// an initial read-write state.
-func newDefinitionRegistry() *DefinitionRegistry {
-	readonly := &atomic.Bool{}
-	readonly.Store(false)
-	return &DefinitionRegistry{
-		entries:   map[string][]*Definition{},
-		factories: map[string]string{},
-		readonly:  readonly,
-	}
-}
-
-// Lock sets the DefinitionRegistry to a read-only state, preventing further modifications.
-func (dr *DefinitionRegistry) Lock() {
-	dr.readonly.Store(true)
-}
-
 // DefinitionFilter defines a filter function for Definition.
 type DefinitionFilter func(*Definition) bool
 
@@ -64,6 +39,13 @@ type DefinitionFilter func(*Definition) bool
 func NamespaceFilter(ns Namespace) DefinitionFilter {
 	return func(def *Definition) bool {
 		return def.Namespace() == ns
+	}
+}
+
+// ScopeFilter returns a DefinitionFilter that matches Definitions with the specified scope.
+func ScopeFilter(scope Scope) DefinitionFilter {
+	return func(def *Definition) bool {
+		return def.scope == scope
 	}
 }
 
@@ -77,6 +59,31 @@ func TagFilter(match string) DefinitionFilter {
 		}
 		return false
 	}
+}
+
+// DefinitionRegistry manages a collection of component definitions and their associated factories,
+// supporting read-only state.
+type DefinitionRegistry struct {
+	entries   map[string][]*Definition
+	factories map[string]*Definition
+	readonly  *atomic.Bool
+}
+
+// newDefinitionRegistry creates and returns a new DefinitionRegistry with
+// an initial read-write state.
+func newDefinitionRegistry() *DefinitionRegistry {
+	readonly := &atomic.Bool{}
+	readonly.Store(false)
+	return &DefinitionRegistry{
+		entries:   map[string][]*Definition{},
+		factories: map[string]*Definition{},
+		readonly:  readonly,
+	}
+}
+
+// Lock sets the DefinitionRegistry to a read-only state, preventing further modifications.
+func (dr *DefinitionRegistry) Lock() {
+	dr.readonly.Store(true)
 }
 
 // GetDefinition retrieves definitions by name, optionally applying filters to refine the results.
@@ -101,6 +108,24 @@ func (dr *DefinitionRegistry) GetDefinition(name string, filters ...DefinitionFi
 	return result
 }
 
+// GetDefinitions returns a list of definitions that match all the provided filters.
+func (dr *DefinitionRegistry) GetDefinitions(filters ...DefinitionFilter) []*Definition {
+	var result []*Definition
+	for _, def := range dr.factories {
+		matched := true
+		for _, filter := range filters {
+			if filter != nil && !filter(def) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			result = append(result, def)
+		}
+	}
+	return result
+}
+
 // register adds a new Definition to the registry, ensuring no duplicate factory functions and not in read-only mode.
 func (dr *DefinitionRegistry) register(def *Definition) error {
 	if dr.readonly.Load() {
@@ -110,7 +135,7 @@ func (dr *DefinitionRegistry) register(def *Definition) error {
 	if _, ok := dr.factories[fid]; ok {
 		return fmt.Errorf("object's factory function %s already exists", fid)
 	}
-	dr.factories[fid] = def.Name()
+	dr.factories[fid] = def
 	dr.entries[def.Name()] = append(dr.entries[def.Name()], def)
 	return nil
 }
