@@ -10,14 +10,18 @@ import (
 )
 
 const (
-	// TagComponent is a constant string used to identify a component kind in tags.
-	TagComponent = "kind=component"
+	// TagNSKey is a constant string used as a key to identify the namespace in tags.
+	TagNSKey = "ns"
+	// TagNSCore represents a constant string that combines the namespace key with "core" for tagging.
+	TagNSCore = TagNSKey + "=core"
 )
 
 var (
-	componentFilter = object.DefinitionFilter(func(def *object.Definition) bool {
-		return util.InSlice(TagComponent, def.Tags())
+	// nsCoreFilter is a DefinitionFilter that selects Definitions tagged with the TagNSCore tag.
+	nsCoreFilter = object.DefinitionFilter(func(def *object.Definition) bool {
+		return util.InSlice(TagNSCore, def.Tags())
 	})
+	// singletonFilter is a DefinitionFilter that selects Definitions with the Singleton scope.
 	singletonFilter = object.DefinitionFilter(func(def *object.Definition) bool {
 		return def.Scope() == object.Singleton
 	})
@@ -34,8 +38,7 @@ type ObjectFactory interface {
 type CoreObjectFactory struct {
 	registry *object.DefinitionRegistry
 	*sync.Mutex
-	objs  map[string]Object
-	comps []Object
+	objs map[string]Object
 }
 
 // NewObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
@@ -44,7 +47,6 @@ func NewObjectFactory() ObjectFactory {
 		registry: object.GetDefinitionRegistry(),
 		Mutex:    &sync.Mutex{},
 		objs:     map[string]Object{},
-		comps:    []Object{},
 	}
 }
 
@@ -136,7 +138,7 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition) ([]string, e
 		node := queue[0]
 		queue = queue[1:]
 
-		def, err := c.getDefinition(node, componentFilter)
+		def, err := c.getDefinition(node, nsCoreFilter)
 		if err != nil {
 			return nil, err
 		}
@@ -202,6 +204,14 @@ func (c *CoreObjectFactory) init() error {
 	return nil
 }
 
+// destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
 func (c *CoreObjectFactory) destroy() error {
+	c.Lock()
+	defer c.Unlock()
+	for _, obj := range c.objs {
+		if err := obj.Destroy(); err != nil {
+			// TODO warning
+		}
+	}
 	return nil
 }
