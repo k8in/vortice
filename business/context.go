@@ -2,7 +2,6 @@ package business
 
 import (
 	"context"
-	"vortice/object"
 )
 
 type ctxKey string
@@ -13,7 +12,7 @@ var (
 )
 
 type Context[O any] interface {
-	Namespace() object.Namespace
+	Namespace() string
 	Object() O
 }
 
@@ -21,8 +20,8 @@ type ctx[O any] struct {
 	context.Context
 }
 
-func (ctx *ctx[O]) Namespace() object.Namespace {
-	return ctx.Value(nsKey).(object.Namespace)
+func (ctx *ctx[O]) Namespace() string {
+	return ctx.Value(nsKey).(string)
 }
 
 func (ctx *ctx[O]) Object() O {
@@ -30,7 +29,7 @@ func (ctx *ctx[O]) Object() O {
 }
 
 func WithNamespace(ctx context.Context, ns string) context.Context {
-	return context.WithValue(ctx, nsKey, object.Namespace(ns))
+	return context.WithValue(ctx, nsKey, string(ns))
 }
 
 func WithObject[O any](c context.Context, obj O) Context[O] {

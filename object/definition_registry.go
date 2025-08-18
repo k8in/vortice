@@ -61,10 +61,10 @@ func TagFilter(match string) DefinitionFilter {
 // DefinitionRegistry manages a collection of component definitions and their associated factories,
 // supporting read-only state.
 type DefinitionRegistry struct {
-	readonly   *atomic.Bool
-	entries    map[string][]*Definition
-	factories  map[string]*Definition
-	registered []string
+	readonly  *atomic.Bool
+	entries   map[string][]*Definition
+	factories map[string]*Definition
+	inSeq     []string
 }
 
 // newDefinitionRegistry creates and returns a new DefinitionRegistry with
@@ -73,10 +73,10 @@ func newDefinitionRegistry() *DefinitionRegistry {
 	readonly := &atomic.Bool{}
 	readonly.Store(false)
 	return &DefinitionRegistry{
-		readonly:   readonly,
-		entries:    map[string][]*Definition{},
-		factories:  map[string]*Definition{},
-		registered: []string{},
+		readonly:  readonly,
+		entries:   map[string][]*Definition{},
+		factories: map[string]*Definition{},
+		inSeq:     []string{},
 	}
 }
 
@@ -140,7 +140,7 @@ func (dr *DefinitionRegistry) register(def *Definition) error {
 	}
 	dr.factories[fid] = def
 	dr.entries[def.Name()] = append(dr.entries[def.Name()], def)
-	dr.registered = append(dr.registered, fid)
+	dr.inSeq = append(dr.inSeq, fid)
 	return nil
 }
 
@@ -170,7 +170,7 @@ func (dr *DefinitionRegistry) sortAndCheck() error {
 	if err != nil {
 		return err
 	}
-	registered := []string{}
+	inSeq := []string{}
 	for _, name := range sorted {
 		// 检查是否已注册
 		defs, ok := dr.entries[name]
@@ -182,9 +182,9 @@ func (dr *DefinitionRegistry) sortAndCheck() error {
 				zap.String("definition", def.Name()),
 				zap.String("factory", def.Factory().Name()),
 				zap.Int("dependsOn", len(def.DependsOn())))
-			registered = append(registered, def.Factory().Name())
+			inSeq = append(inSeq, def.Factory().Name())
 		}
 	}
-	dr.registered = registered
+	dr.inSeq = inSeq
 	return nil
 }

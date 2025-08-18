@@ -11,10 +11,3 @@ type Context interface {
 	GetFilters() []object.DefinitionFilter
 	GetObjects() map[string]Object
 }
-
-type Ctx struct {
-	context.Context
-	factory ObjectFactory
-	filters []object.DefinitionFilter
-	objects map[string]Object
-}

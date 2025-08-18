@@ -76,6 +76,11 @@ func newMethod(obj reflect.Type, iter reflect.Type, method string) *reflect.Meth
 	return nil
 }
 
+// IsLifeCycle checks if the object implements the Lifecycle interface.
+func (m *Methods) IsLifeCycle() bool {
+	return m.obj.Implements(lifecycleType)
+}
+
 // CallInit invokes the initialization method on the provided reflect.Value
 // and returns the result along with any error.
 func (m *Methods) CallInit(ins reflect.Value) error {

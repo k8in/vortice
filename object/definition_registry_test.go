@@ -158,13 +158,13 @@ func TestDefinitionRegistry_Init_SortAndCheck(t *testing.T) {
 	if !reg.readonly.Load() {
 		t.Error("Init should set registry to readonly")
 	}
-	if len(reg.registered) != 2 {
-		t.Errorf("Init should record registered definitions, got %d", len(reg.registered))
+	if len(reg.inSeq) != 2 {
+		t.Errorf("Init should record registered definitions, got %d", len(reg.inSeq))
 	}
 	// Registered order should be topologically sorted
 	// defA 依赖 defB，defB 应在 defA 之前
-	if reg.registered[0] != "fb" || reg.registered[1] != "fa" {
-		t.Errorf("Registered order incorrect: %v", reg.registered)
+	if reg.inSeq[0] != "fb" || reg.inSeq[1] != "fa" {
+		t.Errorf("Registered order incorrect: %v", reg.inSeq)
 	}
 }
 
@@ -199,24 +199,24 @@ func TestDefinitionRegistry_Init_SortAndCheck_Complex(t *testing.T) {
 	if !reg.readonly.Load() {
 		t.Error("Init should set registry to readonly")
 	}
-	if len(reg.registered) != 5 {
-		t.Errorf("Init should record registered definitions, got %d", len(reg.registered))
+	if len(reg.inSeq) != 5 {
+		t.Errorf("Init should record registered definitions, got %d", len(reg.inSeq))
 	}
 
 	// 检查拓扑排序顺序
 	// fd 必须在 fb、fc、fa1、fa2 之前
 	// fb、fc 必须在 fa1、fa2 之前
 	index := map[string]int{}
-	for i, v := range reg.registered {
+	for i, v := range reg.inSeq {
 		index[v] = i
 	}
 	if !(index["fd"] < index["fb"] && index["fd"] < index["fc"]) {
-		t.Errorf("fd should be before fb and fc: %v", reg.registered)
+		t.Errorf("fd should be before fb and fc: %v", reg.inSeq)
 	}
 	if !(index["fb"] < index["fa1"] && index["fb"] < index["fa2"]) {
-		t.Errorf("fb should be before fa1 and fa2: %v", reg.registered)
+		t.Errorf("fb should be before fa1 and fa2: %v", reg.inSeq)
 	}
 	if !(index["fc"] < index["fa1"]) {
-		t.Errorf("fc should be before fa1: %v", reg.registered)
+		t.Errorf("fc should be before fa1: %v", reg.inSeq)
 	}
 }
