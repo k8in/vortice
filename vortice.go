@@ -1,31 +1,42 @@
 package vortice
 
 import (
+	"context"
+	"reflect"
+	"vortice/container"
 	"vortice/object"
 	"vortice/util"
 
 	"go.uber.org/zap"
 )
 
+// GetElem retrieves an object of the specified pointer type from the container within the given context.
 /*
-GetInterface extracts and returns the value from a pointer to an interface of any type.
-
 	type Service interface{}
-	var srv Service =  GetInterface((*Service)(nil))
+	var srv Service =  GetElem((*Service)(nil))
 */
-//func GetInterface[T any](itf *T) T {
-//	return *itf
-//}
+func GetElem[T any](ctx context.Context, typ *T) T {
+	coreCtx := container.WithCoreContext(ctx)
+	objs, err := container.DefaultCore().GetObjects(coreCtx, typ)
+	if err != nil || len(objs) == 0 {
+		return zeroVal(typ).(T)
+	}
+	return objs[0].Instance().(T)
+}
 
+// Get retrieves an object of the specified type from the container within the given context.
 /*
-GetStruct returns the input interface as its underlying struct type.
-
 		type Object struct{}
-	    var obj *Object = GetStruct((*Object)(nil))
+	    var obj *Object = Get((*Object)(nil))
 */
-//func GetStruct[T any](itf T) T {
-//	return itf
-//}
+func Get[T any](ctx context.Context, typ T) T {
+	coreCtx := container.WithCoreContext(ctx)
+	objs, err := container.DefaultCore().GetObjects(coreCtx, typ)
+	if err != nil || len(objs) == 0 {
+		return zeroVal(typ).(T)
+	}
+	return objs[0].Instance().(T)
+}
 
 // Register0 registers a factory function that takes no arguments, with optional configuration options.
 func Register0[T any, FN object.FactoryFunc0[T]](fn FN, opts ...Option) {
@@ -71,7 +82,15 @@ func register(fn any, opts ...Option) {
 	for _, option := range opts {
 		option(prop)
 	}
-	if _, err := object.RegisterFactory(fn, prop); err != nil {
+	if _, err := container.DefaultCore().RegisterFactory(fn, prop, true); err != nil {
 		util.Logger().Panic("register", zap.Error(err))
 	}
+}
+
+func zeroVal(typ any) any {
+	rt := reflect.TypeOf(typ)
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	return reflect.Zero(rt).Interface()
 }
