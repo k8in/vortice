@@ -1,17 +1,15 @@
 package business
 
-import "vortice/object"
-
 type PluginInitFunc func() error
 
 type Plugin struct {
-	ns   object.Namespace
+	ns   string
 	fns  []PluginInitFunc
 	used []any
 }
 
 func NewPlugin(ns string) *Plugin {
-	return &Plugin{ns: object.Namespace(ns), fns: []PluginInitFunc{}}
+	return &Plugin{ns: ns, fns: []PluginInitFunc{}}
 }
 
 func (p *Plugin) InitExtension(fn ...PluginInitFunc) {

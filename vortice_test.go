@@ -6,6 +6,13 @@ import (
 )
 
 type Dummy struct{}
+type Dummy0 struct{}
+type Dummy1 struct{}
+type Dummy2 struct{}
+type Dummy3 struct{}
+type Dummy4 struct{}
+type Dummy5 struct{}
+type Dummy6 struct{}
 type DummyA struct{}
 type DummyB struct{}
 type DummyC struct{}
@@ -13,13 +20,13 @@ type DummyD struct{}
 type DummyE struct{}
 type DummyF struct{}
 
-func dummyFactory0() Dummy                                                           { return Dummy{} }
-func dummyFactory1(a DummyA) Dummy                                                   { return Dummy{} }
-func dummyFactory2(a DummyA, b DummyB) Dummy                                         { return Dummy{} }
-func dummyFactory3(a DummyA, b DummyB, c DummyC) Dummy                               { return Dummy{} }
-func dummyFactory4(a DummyA, b DummyB, c DummyC, d DummyD) Dummy                     { return Dummy{} }
-func dummyFactory5(a DummyA, b DummyB, c DummyC, d DummyD, e DummyE) Dummy           { return Dummy{} }
-func dummyFactory6(a DummyA, b DummyB, c DummyC, d DummyD, e DummyE, f DummyF) Dummy { return Dummy{} }
+func dummyFactory0() Dummy0                                                           { return Dummy0{} }
+func dummyFactory1(a DummyA) Dummy1                                                   { return Dummy1{} }
+func dummyFactory2(a DummyA, b DummyB) Dummy2                                         { return Dummy2{} }
+func dummyFactory3(a DummyA, b DummyB, c DummyC) Dummy3                               { return Dummy3{} }
+func dummyFactory4(a DummyA, b DummyB, c DummyC, d DummyD) Dummy4                     { return Dummy4{} }
+func dummyFactory5(a DummyA, b DummyB, c DummyC, d DummyD, e DummyE) Dummy5           { return Dummy5{} }
+func dummyFactory6(a DummyA, b DummyB, c DummyC, d DummyD, e DummyE, f DummyF) Dummy6 { return Dummy6{} }
 
 func TestRegister0To6(t *testing.T) {
 	t.Run("Register0", func(t *testing.T) {
@@ -86,8 +93,9 @@ func TestRegister_WithOption(t *testing.T) {
 		optCalled = true
 		prop.SetTag("test", "v")
 	}
-	// 使用唯一的 factory，避免重复注册 panic
-	uniqueFactory := func() Dummy { return Dummy{} }
+	// 使用唯一的 factory/type，避免与其它测试重复注册
+	type UniqueDummy struct{}
+	uniqueFactory := func() UniqueDummy { return UniqueDummy{} }
 	Register0(uniqueFactory, opt)
 	if !optCalled {
 		t.Error("Option was not called in Register0")

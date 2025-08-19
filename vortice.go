@@ -77,6 +77,7 @@ func Register6[T, A, B, C, D, E, F any, FN object.FactoryFunc6[T, A, B, C, D, E,
 	register(fn, opts...)
 }
 
+// register registers a factory function with the object system, applying given options.
 func register(fn any, opts ...Option) {
 	prop := object.NewProperty()
 	for _, option := range opts {
@@ -87,6 +88,7 @@ func register(fn any, opts ...Option) {
 	}
 }
 
+// zeroVal returns a zero value for the type of the provided argument, dereferencing pointers.
 func zeroVal(typ any) any {
 	rt := reflect.TypeOf(typ)
 	if rt.Kind() == reflect.Ptr {
