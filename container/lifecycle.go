@@ -24,7 +24,7 @@ type lifecycleProcessor struct {
 func newLifecycleProcessor(timeout time.Duration) *lifecycleProcessor {
 	return &lifecycleProcessor{
 		comps:   []Object{},
-		tg:      util.NewTaskGroup("vortice.container.lifecycleProcessor"),
+		tg:      util.NewTaskGroup("container.lifecycleProcessor"),
 		timeout: timeout,
 	}
 }

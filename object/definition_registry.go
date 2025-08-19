@@ -3,6 +3,7 @@ package object
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync/atomic"
 
 	"vortice/util"
@@ -25,10 +26,12 @@ type (
 		// RegisterFactory registers a factory function with the given property and returns a new Definition,
 		// or an error if registration fails.
 		RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error)
-		// GetDefinitionsByName retrieves a list of Definitions by name, optionally filtered by the provided DefinitionFilter functions.
-		GetDefinitionsByName(name string, filters ...DefinitionFilter) []*Definition
 		// GetDefinitions returns a list of all Definitions, optionally filtered by the provided DefinitionFilter functions.
 		GetDefinitions(filters ...DefinitionFilter) []*Definition
+		// GetDefinitionsByName retrieves a list of Definitions by name, optionally filtered by the provided DefinitionFilter functions.
+		GetDefinitionsByName(name string, filters ...DefinitionFilter) []*Definition
+		// GetDefinitionsByType retrieves a list of Definitions matching the given type, optionally filtered by provided filters.
+		GetDefinitionsByType(typ any, filters ...DefinitionFilter) ([]*Definition, error)
 	}
 )
 
@@ -96,6 +99,24 @@ func (dr *DefaultDefRegistry) Init() error {
 	return nil
 }
 
+// GetDefinitions returns a list of definitions that match all the provided filters.
+func (dr *DefaultDefRegistry) GetDefinitions(filters ...DefinitionFilter) []*Definition {
+	var result []*Definition
+	for _, def := range dr.factories {
+		matched := true
+		for _, filter := range filters {
+			if filter != nil && !filter(def) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			result = append(result, def)
+		}
+	}
+	return result
+}
+
 // GetDefinitionsByName retrieves definitions by name, optionally filtered by provided DefinitionFilter functions.
 func (dr *DefaultDefRegistry) GetDefinitionsByName(name string, filters ...DefinitionFilter) []*Definition {
 	defs := dr.entries[name]
@@ -118,22 +139,34 @@ func (dr *DefaultDefRegistry) GetDefinitionsByName(name string, filters ...Defin
 	return result
 }
 
-// GetDefinitions returns a list of definitions that match all the provided filters.
-func (dr *DefaultDefRegistry) GetDefinitions(filters ...DefinitionFilter) []*Definition {
-	var result []*Definition
-	for _, def := range dr.factories {
-		matched := true
-		for _, filter := range filters {
-			if filter != nil && !filter(def) {
-				matched = false
-				break
-			}
-		}
-		if matched {
-			result = append(result, def)
-		}
+// GetDefinitionsByType retrieves definitions by type, optionally filtered by provided DefinitionFilter functions.
+func (dr *DefaultDefRegistry) GetDefinitionsByType(typ any, filters ...DefinitionFilter) ([]*Definition, error) {
+	objType := dr.getObjectType(typ)
+	if objType == nil {
+		return nil, errors.Join(errors.New("getObjectType failed"),
+			fmt.Errorf("invalid object type: %#v", typ))
 	}
-	return result
+	defs := dr.GetDefinitionsByName(generateReflectionName(objType), filters...)
+	if defs == nil || len(defs) == 0 {
+		return nil, fmt.Errorf("object type not found: %v", typ)
+	}
+	return defs, nil
+}
+
+// getType returns the reflect.Type of the provided type if it is a pointer to an interface or struct, otherwise nil.
+func (r *DefaultDefRegistry) getObjectType(typ any) reflect.Type {
+	if typ == nil {
+		return nil
+	}
+	rt := reflect.TypeOf(typ)
+	if rt.Kind() != reflect.Ptr {
+		return nil
+	}
+	rek := rt.Elem().Kind()
+	if rek != reflect.Interface && rek != reflect.Struct {
+		return nil
+	}
+	return rt
 }
 
 // register adds a new Definition to the registry, ensuring it's unique if required and not in read-only mode.
@@ -157,21 +190,25 @@ func (dr *DefaultDefRegistry) register(def *Definition, unique bool) error {
 }
 
 /*
-理论上此时所有的组件依赖项应已被注册，并且彼此没有依赖环（构造注入模式）
+In theory, at this point all component dependencies should have been registered, and there should be
+no dependency cycles (constructor injection mode).
 
-系统初始化阶段要提前检测：
-1）依赖组件忘记注册
-2）存在依赖环（GO 包依赖机制在编译期会检查这种情况，但是包内依赖环无法避免）
+During system initialization, the following should be checked in advance:
 
-	type ServiceA interface {
-		New(ServiceB)
-	}
+ 1. Dependent components forgotten to register
 
-	type ServiceB interface {
-		New(ServiceA)
-	}
+ 2. Existence of dependency cycles (GO package dependency mechanism checks this at compile time,
+    but intra-package cycles cannot be avoided)
 
-// 为了简化系统设计，不允许依赖环这种���码设计
+    type ServiceA interface {
+    New(ServiceB)
+    }
+
+    type ServiceB interface {
+    New(ServiceA)
+    }
+
+To simplify system design, code with dependency cycles is not allowed.
 */
 func (dr *DefaultDefRegistry) sortAndCheck() error {
 	dag, defs := util.NewDAG(), dr.factories
@@ -184,7 +221,6 @@ func (dr *DefaultDefRegistry) sortAndCheck() error {
 	}
 	inSeq := []string{}
 	for _, name := range sorted {
-		// 检查是否��注册
 		defs, ok := dr.entries[name]
 		if !ok {
 			return fmt.Errorf("%s validation failed: definition not found", name)

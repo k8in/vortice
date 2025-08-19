@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// --- AI GENERATED CODE BEGIN ---
+
 func makeTestDefinition(name, factoryName string, tags []string) *Definition {
 	return &Definition{
 		name:      name,
@@ -57,8 +59,12 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 		t.Error("registry should be readonly after Init")
 	}
 	def2 := makeTestDefinition("obj2", "factory2", []string{"tag"})
-	if err := reg.register(def2, false); err == nil {
+	err := reg.register(def2, false)
+	if err == nil {
 		t.Error("register should fail after Init")
+	}
+	if err != nil && err.Error() != "the DefinitionRegistry has been locked" {
+		t.Errorf("error message should be 'the DefinitionRegistry has been locked', got: %v", err)
 	}
 }
 
@@ -224,3 +230,88 @@ func TestDefinitionRegistry_Init_SortAndCheck_Complex(t *testing.T) {
 		t.Errorf("fc should be before fa1: %v", reg.inSeq)
 	}
 }
+
+func TestDefinitionRegistry_GetDefinitionsByType(t *testing.T) {
+	reg := NewDefinitionRegistry()
+
+	// 指针指向 struct，应该通过
+	type myStruct struct{}
+	typ := reflect.TypeOf((*myStruct)(nil))
+	def := &Definition{
+		name:      generateReflectionName(typ),
+		typ:       typ,
+		factory:   &Factory{name: "factory"},
+		dependsOn: []string{},
+		methods:   &Methods{},
+		scope:     Singleton,
+		tags:      []string{"tag"},
+	}
+	_ = reg.register(def, false)
+
+	defs, err := reg.GetDefinitionsByType((*myStruct)(nil))
+	if err != nil {
+		t.Fatalf("GetDefinitionsByType failed: %v", err)
+	}
+	if len(defs) != 1 || defs[0] != def {
+		t.Error("GetDefinitionsByType should return the correct definition")
+	}
+
+	// 非指针类型，应该失败
+	_, err = reg.GetDefinitionsByType(myStruct{})
+	if err == nil {
+		t.Error("GetDefinitionsByType should fail for non-pointer type")
+	}
+
+	// 指针指向非 struct/interface（如 int），应该失败
+	var intPtr *int
+	_, err = reg.GetDefinitionsByType(intPtr)
+	if err == nil {
+		t.Error("GetDefinitionsByType should fail for pointer to non-struct/interface")
+	}
+
+	// 未注册类型，应该失败
+	type anotherStruct struct{}
+	_, err = reg.GetDefinitionsByType((*anotherStruct)(nil))
+	if err == nil {
+		t.Error("GetDefinitionsByType should fail for unknown type")
+	}
+}
+
+func TestDefinitionRegistry_getObjectType(t *testing.T) {
+	reg := NewDefinitionRegistry()
+
+	// 指针指向 struct
+	type myStruct struct{}
+	ptrStruct := &myStruct{}
+	rt := reg.getObjectType(ptrStruct)
+	if rt == nil || rt.Kind() != reflect.Ptr || rt.Elem().Kind() != reflect.Struct {
+		t.Error("getObjectType should return pointer to struct type")
+
+	}
+
+	// 指针指向 interface
+	var ifacePtr *testing.T
+	rtIface := reg.getObjectType(ifacePtr)
+	if rtIface == nil || rtIface.Kind() != reflect.Ptr || rtIface.Elem().Kind() != reflect.Struct {
+		t.Error("getObjectType should return pointer to struct type for *testing.T")
+	}
+
+	// 非指针类型
+	val := myStruct{}
+	if reg.getObjectType(val) != nil {
+		t.Error("getObjectType should return nil for non-pointer type")
+	}
+
+	// 指针指向非 struct/interface（如 int）
+	var intPtr *int
+	if reg.getObjectType(intPtr) != nil {
+		t.Error("getObjectType should return nil for pointer to non-struct/interface")
+	}
+
+	// nil
+	if reg.getObjectType(nil) != nil {
+		t.Error("getObjectType should return nil for nil input")
+	}
+}
+
+// --- AI GENERATED CODE END ---

@@ -22,10 +22,6 @@ var (
 	autoWiredFilter = object.DefinitionFilter(func(def *object.Definition) bool {
 		return util.InSlice(TagAutowired, def.Tags())
 	})
-	// singletonFilter is a DefinitionFilter that selects Definitions with the Singleton scope.
-	singletonFilter = object.DefinitionFilter(func(def *object.Definition) bool {
-		return def.Scope() == object.Singleton
-	})
 )
 
 // ObjectFactory is an interface for creating and managing objects, including initialization and destruction.
@@ -42,17 +38,17 @@ type ObjectFactory interface {
 // customize object creation.
 type CoreObjectFactory struct {
 	object.DefinitionRegistry
-	once *sync.Once
-	*sync.Mutex
-	objs map[string]Object
+	once  *sync.Once
+	mutex *sync.RWMutex
+	objs  map[string]Object
 }
 
 // NewCoreObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
 func NewCoreObjectFactory() *CoreObjectFactory {
 	return &CoreObjectFactory{
-		once:               &sync.Once{},
 		DefinitionRegistry: object.NewDefinitionRegistry(),
-		Mutex:              &sync.Mutex{},
+		once:               &sync.Once{},
+		mutex:              &sync.RWMutex{},
 		objs:               map[string]Object{},
 	}
 }
@@ -64,20 +60,20 @@ func (c *CoreObjectFactory) Init() error {
 		if err = c.DefinitionRegistry.Init(); err != nil {
 			return
 		}
-		defs := c.GetDefinitions(singletonFilter)
-		c.Lock()
-		defer c.Unlock()
-		for _, def := range defs {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		l := util.Logger()
+		for _, def := range c.GetDefinitions(object.ScopeFilter(object.Singleton)) {
 			obj, err := c.newObject(def, map[string]Object{})
 			if err != nil {
 				return
 			}
-			util.Logger().Debug("creating object", zap.String("definition", def.String()))
+			l.Debug("creating object", zap.String("definition", def.String()))
 			if !def.LazyInit() {
 				if err = obj.Init(); err != nil {
 					return
 				}
-				util.Logger().Debug("object initialized", zap.String("definition", def.String()))
+				l.Debug("object initialized", zap.String("definition", def.String()))
 			}
 			c.objs[def.ID()] = obj
 		}
@@ -87,33 +83,26 @@ func (c *CoreObjectFactory) Init() error {
 
 // Destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
 func (c *CoreObjectFactory) Destroy() error {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	for _, obj := range c.objs {
 		if err := obj.Destroy(); err != nil {
 			// TODO warning
 			return err
 		}
 	}
-	c.DefinitionRegistry = nil
 	return nil
 }
 
 // GetObjects retrieves and initializes objects of the specified type, returning them along with any error.
 func (c *CoreObjectFactory) GetObjects(ctx Context, typ any) ([]Object, error) {
-	objType := c.getType(typ)
-	if objType == nil {
-		return nil, errors.Join(errors.New("getType failed"),
-			fmt.Errorf("invalid object type: %v", typ))
+	defs, err := c.GetDefinitionsByType(typ, ctx.GetFilters()...)
+	if err != nil {
+		return nil, err
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	objs := []Object{}
-	name := object.GenerateDefinitionName(objType)
-	defs := c.GetDefinitionsByName(name, ctx.GetFilters()...)
-	if defs == nil || len(defs) == 0 {
-		return nil, fmt.Errorf("unknown object type: %v", typ)
-	}
 	for _, def := range defs {
 		var (
 			obj Object
@@ -189,22 +178,6 @@ func (c *CoreObjectFactory) buildObject(def *object.Definition,
 		objs[obj.ID()] = obj
 	}
 	return obj, nil
-}
-
-// getType returns the reflect.Type of the provided type if it is a pointer to an interface or struct, otherwise nil.
-func (r *CoreObjectFactory) getType(typ any) reflect.Type {
-	if typ == nil {
-		return nil
-	}
-	rt := reflect.TypeOf(typ)
-	if rt.Kind() != reflect.Ptr {
-		return nil
-	}
-	rek := rt.Elem().Kind()
-	if rek != reflect.Interface && rek != reflect.Struct {
-		return nil
-	}
-	return rt
 }
 
 // getDependencies retrieves and sorts the dependencies for a given object definition.

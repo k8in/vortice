@@ -141,7 +141,7 @@ func NewProperty() *Property {
 	return &Property{
 		Scope:       Singleton,
 		Desc:        "",
-		LazyInit:    false,
+		LazyInit:    true,
 		AutoStartup: false,
 		tags:        []string{},
 	}
@@ -303,11 +303,3 @@ func generateReflectionName(rt reflect.Type) string {
 	}
 	return rt.PkgPath() + "." + name
 }
-
-// 说明：reflect.Value 的 Kind 为 "invalid" 时，表示该值未初始化或已被清空。
-// 此时 ptr 不可读，无法���问底层数据，任何操作都会失败。
-// 常见于 reflect.Value{} 或对象被销毁后。
-// 示例：
-//   var v reflect.Value
-//   fmt.Println(v.Kind()) // 输出 "invalid"
-//   v.Interface() // panic: reflect: call of reflect.Value.Interface on zero Value

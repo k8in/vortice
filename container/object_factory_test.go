@@ -111,19 +111,6 @@ func TestCoreObjectFactory_GetObject_NotFound(t *testing.T) {
 	}
 }
 
-func TestCoreObjectFactory_getType(t *testing.T) {
-	factory := NewCoreObjectFactory()
-	if factory.getType((*depA)(nil)) == nil {
-		t.Error("getType should return type for pointer to struct")
-	}
-	if factory.getType(depA{}) != nil {
-		t.Error("getType should return nil for non-pointer")
-	}
-	if factory.getType(nil) != nil {
-		t.Error("getType should return nil for nil")
-	}
-}
-
 func TestCoreObjectFactory_newObject_DependencyInit(t *testing.T) {
 	propB := object.NewProperty()
 	addCoreTag(propB)
