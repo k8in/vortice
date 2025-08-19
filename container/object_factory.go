@@ -30,6 +30,8 @@ type ObjectFactory interface {
 	object.DefinitionRegistry
 	// GetObjects retrieves a list of objects of the specified type from the factory, using the provided context.
 	GetObjects(ctx Context, typ any) ([]Object, error)
+	// GetObjectsByName retrieves a list of objects by name from the factory, using the provided context.
+	GetObjectsByName(ctx Context, name string) ([]Object, error)
 	// Destroy cleans up resources and finalizes the ObjectFactory, returning an error if the operation fails.
 	Destroy() error
 }
@@ -57,11 +59,11 @@ func NewCoreObjectFactory() *CoreObjectFactory {
 func (c *CoreObjectFactory) Init() error {
 	var err error
 	c.once.Do(func() {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
 		if err = c.DefinitionRegistry.Init(); err != nil {
 			return
 		}
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
 		l := util.Logger()
 		for _, def := range c.GetDefinitions(object.ScopeFilter(object.Singleton)) {
 			obj, err := c.newObject(def, map[string]Object{})
@@ -102,7 +104,23 @@ func (c *CoreObjectFactory) GetObjects(ctx Context, typ any) ([]Object, error) {
 	}
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+	return c.getObjects(defs, ctx.GetObjects())
+}
+
+// GetObjectsByName retrieves and initializes objects by name, returning them along with any error.
+func (c *CoreObjectFactory) GetObjectsByName(ctx Context, name string) ([]Object, error) {
+	defs := c.GetDefinitionsByName(name, ctx.GetFilters()...)
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return c.getObjects(defs, ctx.GetObjects())
+}
+
+// getObjects processes a list of object definitions, creates and initializes the objects, and returns them.
+func (c *CoreObjectFactory) getObjects(defs []*object.Definition, getCtx map[string]Object) ([]Object, error) {
 	objs := []Object{}
+	if defs == nil || len(defs) == 0 {
+		return objs, nil
+	}
 	for _, def := range defs {
 		var (
 			obj Object
@@ -114,7 +132,7 @@ func (c *CoreObjectFactory) GetObjects(ctx Context, typ any) ([]Object, error) {
 			}
 		}
 		if obj == nil {
-			obj, err = c.newObject(def, ctx.GetObjects())
+			obj, err = c.newObject(def, getCtx)
 			if err != nil {
 				return nil, errors.Join(errors.New("newObject failed"), err)
 			}
