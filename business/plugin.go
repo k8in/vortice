@@ -1,5 +1,7 @@
 package business
 
+type Namespace string
+
 type PluginInitFunc func() error
 
 type Plugin struct {

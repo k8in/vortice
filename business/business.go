@@ -4,8 +4,6 @@ import (
 	"vortice/object"
 )
 
-type Option object.Option
-
 func GetAbility[E, O any, C Context[O]](ctx C, ext E) E {
 	return ext
 }
@@ -38,4 +36,14 @@ func Register5[T, A, B, C, D, E any, FN object.FactoryFunc5[T, A, B, C, D, E]](
 func Register6[T, A, B, C, D, E, F any, FN object.FactoryFunc6[T, A, B, C, D, E, F]](
 	fn FN, opts ...Option) {
 	// 实现略
+}
+
+func register(fn any, opts ...Option) {
+	//prop := object.NewProperty()
+	//for _, option := range opts {
+	//	option(prop)
+	//}
+	//if _, err := container.DefaultCore().RegisterFactory(fn, prop, true); err != nil {
+	//	util.Logger().Panic("register", zap.Error(err))
+	//}
 }
