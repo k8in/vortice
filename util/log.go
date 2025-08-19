@@ -15,11 +15,12 @@ var (
 // defaultLogger returns a zap.Logger configured to log to standard output.
 func defaultLogger() *zap.Logger {
 	cfg := zap.Config{
-		Encoding:         "console",
-		Level:            zap.NewAtomicLevelAt(zapcore.DebugLevel),
-		OutputPaths:      []string{"stdout"},
-		ErrorOutputPaths: []string{"stdout"},
-		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
+		Encoding:          "console",
+		Level:             zap.NewAtomicLevelAt(zapcore.DebugLevel),
+		OutputPaths:       []string{"stdout"},
+		ErrorOutputPaths:  []string{"stdout"},
+		EncoderConfig:     zap.NewDevelopmentEncoderConfig(),
+		DisableStacktrace: true,
 	}
 	l, err := cfg.Build()
 	if err != nil {
