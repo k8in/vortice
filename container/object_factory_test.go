@@ -2,19 +2,19 @@ package container
 
 import (
 	"context"
-	"reflect"
 	"testing"
+	"time"
 	"vortice/object"
 )
 
 // --- AI GENERATED CODE BEGIN ---
 
 type depA struct{}
-type depB struct{}
+type depB struct{ sec int }
 type coreObj struct{}
 
 func factoryA(b *depB) *depA                { return &depA{} }
-func factoryB() *depB                       { return &depB{} }
+func factoryB() *depB                       { return &depB{sec: time.Now().Nanosecond()} }
 func factoryCore(a *depA, b *depB) *coreObj { return &coreObj{} }
 
 type TestContext struct{ context.Context }
@@ -23,7 +23,7 @@ func (t *TestContext) GetFilters() []object.DefinitionFilter { return []object.D
 func (t *TestContext) GetObjects() map[string]Object         { return map[string]Object{} }
 
 func addCoreTag(prop *object.Property) {
-	prop.SetTag("ns", "core")
+	prop.SetTag("autowired", "true")
 }
 
 func TestCoreObjectFactory_GetObject_Singleton(t *testing.T) {
@@ -34,31 +34,30 @@ func TestCoreObjectFactory_GetObject_Singleton(t *testing.T) {
 	addCoreTag(propB)
 	addCoreTag(propCore)
 
-	factory := NewObjectFactory()
+	factory := NewCoreObjectFactory()
 	_, _ = factory.RegisterFactory(factoryB, propB, false)
 	_, _ = factory.RegisterFactory(factoryA, propA, false)
 	_, _ = factory.RegisterFactory(factoryCore, propCore, false)
 
-	// 必须先初始化
 	if err := factory.Init(); err != nil {
 		t.Fatalf("factory Init failed: %v", err)
 	}
 
 	ctx := &TestContext{}
 
-	obj, err := factory.GetObject(ctx, (*coreObj)(nil))
+	objs, err := factory.GetObjects(ctx, (*coreObj)(nil))
 	if err != nil {
-		t.Fatalf("GetObject failed: %v", err)
+		t.Fatalf("GetObjects failed: %v", err)
 	}
-	if obj == nil || obj.Instance() == nil {
-		t.Error("GetObject should return a valid object")
+	if len(objs) != 1 || objs[0] == nil || objs[0].Instance() == nil {
+		t.Error("GetObjects should return a valid singleton object")
 	}
-	// 再���获取应返回同一个对象（singleton）
-	obj2, err := factory.GetObject(ctx, (*coreObj)(nil))
+	// 再次获取应返回同一个对象（singleton）
+	objs2, err := factory.GetObjects(ctx, (*coreObj)(nil))
 	if err != nil {
-		t.Fatalf("GetObject failed: %v", err)
+		t.Fatalf("GetObjects failed: %v", err)
 	}
-	if obj.Instance() != obj2.Instance() {
+	if objs[0].Instance() != objs2[0].Instance() {
 		t.Error("Singleton scope should return same instance")
 	}
 }
@@ -68,41 +67,52 @@ func TestCoreObjectFactory_GetObject_Prototype(t *testing.T) {
 	propB.Scope = object.Prototype
 	addCoreTag(propB)
 
-	factory := NewObjectFactory()
+	factory := NewCoreObjectFactory()
 	_, _ = factory.RegisterFactory(factoryB, propB, false)
 
-	// 必须先初始化
 	if err := factory.Init(); err != nil {
 		t.Fatalf("factory Init failed: %v", err)
 	}
 
 	ctx := &TestContext{}
 
-	obj1, err := factory.GetObject(ctx, (*depB)(nil))
+	objs1, err := factory.GetObjects(ctx, (*depB)(nil))
 	if err != nil {
-		t.Fatalf("GetObject failed: %v", err)
+		t.Fatalf("GetObjects failed: %v", err)
 	}
-	obj2, err := factory.GetObject(ctx, (*depB)(nil))
+	objs2, err := factory.GetObjects(ctx, (*depB)(nil))
 	if err != nil {
-		t.Fatalf("GetObject failed: %v", err)
+		t.Fatalf("GetObjects failed: %v", err)
 	}
-	if obj1.Instance() == obj2.Instance() {
+	if len(objs1) != 1 || len(objs2) != 1 {
+		t.Fatal("Prototype should return one object per call")
+	}
+	// 补充类型断言，确保实例类型正确
+	if _, ok := objs1[0].Instance().(*depB); !ok {
+		t.Error("Instance should be of type *depB")
+	}
+	if _, ok := objs2[0].Instance().(*depB); !ok {
+		t.Error("Instance should be of type *depB")
+	}
+	// Prototype模式下，每次获取的实例应该不同
+	if objs1[0].Instance() == objs2[0].Instance() {
+		//t.Logf("obj1:%#v, obj2:%#v\n", objs1[0].Instance(), objs2[0].Instance())
 		t.Error("Prototype scope should return different instances")
 	}
 }
 
 func TestCoreObjectFactory_GetObject_NotFound(t *testing.T) {
-	factory := NewObjectFactory()
+	factory := NewCoreObjectFactory()
 	_ = factory.Init()
 	ctx := &TestContext{}
-	_, err := factory.GetObject(ctx, (*struct{ X int })(nil))
-	if err == nil {
-		t.Error("GetObject should fail for unknown type")
+	objs, err := factory.GetObjects(ctx, (*struct{ X int })(nil))
+	if err == nil || len(objs) != 0 {
+		t.Error("GetObjects should fail for unknown type")
 	}
 }
 
 func TestCoreObjectFactory_getType(t *testing.T) {
-	factory := NewObjectFactory().(*CoreObjectFactory)
+	factory := NewCoreObjectFactory()
 	if factory.getType((*depA)(nil)) == nil {
 		t.Error("getType should return type for pointer to struct")
 	}
@@ -118,7 +128,7 @@ func TestCoreObjectFactory_newObject_DependencyInit(t *testing.T) {
 	propB := object.NewProperty()
 	addCoreTag(propB)
 
-	factory := NewObjectFactory()
+	factory := NewCoreObjectFactory()
 	_, _ = factory.RegisterFactory(factoryB, propB, false)
 	propA := object.NewProperty()
 	addCoreTag(propA)
@@ -129,11 +139,11 @@ func TestCoreObjectFactory_newObject_DependencyInit(t *testing.T) {
 	}
 
 	ctx := &TestContext{}
-	obj, err := factory.GetObject(ctx, (*depA)(nil))
+	objs, err := factory.GetObjects(ctx, (*depA)(nil))
 	if err != nil {
-		t.Fatalf("GetObject failed: %v", err)
+		t.Fatalf("GetObjects failed: %v", err)
 	}
-	if !obj.Initialized() {
+	if len(objs) != 1 || !objs[0].Initialized() {
 		t.Error("Dependency object should be initialized")
 	}
 }
@@ -141,31 +151,13 @@ func TestCoreObjectFactory_newObject_DependencyInit(t *testing.T) {
 func TestCoreObjectFactory_init_destroy(t *testing.T) {
 	propB := object.NewProperty()
 	addCoreTag(propB)
-	factory := NewObjectFactory()
+	factory := NewCoreObjectFactory()
 	_, _ = factory.RegisterFactory(factoryB, propB, false)
 	if err := factory.Init(); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 	if err := factory.Destroy(); err != nil {
 		t.Fatalf("Destroy failed: %v", err)
-	}
-}
-
-func TestCoreObjectFactory_getDefinition(t *testing.T) {
-	propB := object.NewProperty()
-	addCoreTag(propB)
-	factory := NewObjectFactory()
-	_, _ = factory.RegisterFactory(factoryB, propB, false)
-	if err := factory.Init(); err != nil {
-		t.Fatalf("factory Init failed: %v", err)
-	}
-	def, err := factory.(*CoreObjectFactory).getDefinition(object.GenerateDefinitionName(reflect.TypeOf((*depB)(nil))))
-	if err != nil || def == nil {
-		t.Error("getDefinition should return definition")
-	}
-	def2, err := factory.(*CoreObjectFactory).getDefinition("notfound")
-	if err == nil || def2 != nil {
-		t.Error("getDefinition should fail for unknown name")
 	}
 }
 

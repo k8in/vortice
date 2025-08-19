@@ -220,4 +220,16 @@ func TestParser_ParseNotFunc(t *testing.T) {
 	}
 }
 
+func TestDefinition_IsSingleton(t *testing.T) {
+	def := &Definition{}
+	def.scope = Singleton
+	if !def.IsSingleton() {
+		t.Error("IsSingleton should return true for Singleton scope")
+	}
+	def.scope = Prototype
+	if def.IsSingleton() {
+		t.Error("IsSingleton should return false for Prototype scope")
+	}
+}
+
 // --- AI GENERATED CODE END ---

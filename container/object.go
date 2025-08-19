@@ -49,11 +49,11 @@ type CoreObject struct {
 }
 
 // NewObject creates a new Object with the given definition, reflect value, and instance.
-func NewObject(def *object.Definition, rv reflect.Value, ins any) Object {
+func NewObject(def *object.Definition, rv reflect.Value) Object {
 	return &CoreObject{
 		def:   def,
 		value: rv,
-		ins:   ins,
+		ins:   rv.Interface(),
 		mux:   &sync.RWMutex{},
 		init:  &atomic.Bool{},
 	}

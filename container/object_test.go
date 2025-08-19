@@ -47,7 +47,7 @@ func newTestDefinitionForObject() *object.Definition {
 func TestCoreObject_Lifecycle(t *testing.T) {
 	comp := &testComp{}
 	def := newTestDefinitionForObject()
-	obj := NewObject(def, reflect.ValueOf(comp), comp)
+	obj := NewObject(def, reflect.ValueOf(comp))
 
 	// Test Init
 	if err := obj.Init(); err != nil {
@@ -85,7 +85,7 @@ func TestCoreObject_Lifecycle(t *testing.T) {
 func TestCoreObject_ConcurrentAccess(t *testing.T) {
 	comp := &testComp{}
 	def := newTestDefinitionForObject()
-	obj := NewObject(def, reflect.ValueOf(comp), comp)
+	obj := NewObject(def, reflect.ValueOf(comp))
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {

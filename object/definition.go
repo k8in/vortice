@@ -114,10 +114,16 @@ func (d *Definition) Tags() []string {
 	return tags
 }
 
+// IsSingleton returns true if the component is defined with a Singleton scope,
+// indicating it will be instantiated once and shared.
+func (d *Definition) IsSingleton() bool {
+	return d.scope == Singleton
+}
+
 // String returns a string representation of the Definition,
 // including its name, type, and tags.
 func (d *Definition) String() string {
-	return fmt.Sprintf("<%s %s %v>", d.Name(), d.typ.Kind(), d.Tags())
+	return fmt.Sprintf("<%s %s %v>", d.Name(), d.ID(), d.Tags())
 }
 
 // Property represents a configuration property with scope, description,
@@ -135,7 +141,7 @@ func NewProperty() *Property {
 	return &Property{
 		Scope:       Singleton,
 		Desc:        "",
-		LazyInit:    true,
+		LazyInit:    false,
 		AutoStartup: false,
 		tags:        []string{},
 	}
@@ -172,12 +178,8 @@ type Parser struct {
 // NewParser initializes a new parser instance for a given function,
 // setting up reflection-based properties and dependencies.
 func NewParser(fn any) *Parser {
-	rv := reflect.ValueOf(fn)
 	p := &Parser{
 		fn:   fn,
-		rt:   rv.Type(),
-		rk:   rv.Kind(),
-		rv:   rv,
 		argv: []reflect.Value{},
 		deps: []string{},
 	}
@@ -222,9 +224,19 @@ func (p *Parser) generateDefinitionName(argType reflect.Type) string {
 
 // checkInputAndSet checks the input function and sets the argument values
 func (p *Parser) checkInputAndSet() error {
-	if p.rk != reflect.Func {
+	rv := reflect.ValueOf(p.fn)
+	if !rv.IsValid() {
+		return errors.New("invalid function")
+	}
+	if rv.Kind() != reflect.Func {
 		return errors.New("input must be a function")
 	}
+	if !rv.CanInterface() {
+		return errors.New("function must be exported (CanInterface=false)")
+	}
+	p.rv = rv
+	p.rt = rv.Type()
+	p.rk = rv.Kind()
 	for i := 0; i < p.rt.NumIn(); i++ {
 		argType := p.rt.In(i)
 		if err := p.checkArgType(argType); err != nil {
@@ -291,3 +303,11 @@ func generateReflectionName(rt reflect.Type) string {
 	}
 	return rt.PkgPath() + "." + name
 }
+
+// 说明：reflect.Value 的 Kind 为 "invalid" 时，表示该值未初始化或已被清空。
+// 此时 ptr 不可读，无法���问底层数据，任何操作都会失败。
+// 常见于 reflect.Value{} 或对象被销毁后。
+// 示例：
+//   var v reflect.Value
+//   fmt.Println(v.Kind()) // 输出 "invalid"
+//   v.Interface() // panic: reflect: call of reflect.Value.Interface on zero Value

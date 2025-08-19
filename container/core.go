@@ -2,27 +2,29 @@ package container
 
 import (
 	"context"
-
-	"vortice/object"
 )
 
 type Core struct {
 	context.Context
 	factory ObjectFactory
-	filters []object.DefinitionFilter
 }
 
 func NewCore(ctx context.Context) *Core {
 	return &Core{
 		Context: ctx,
-		factory: NewObjectFactory(),
-		filters: []object.DefinitionFilter{},
+		factory: NewCoreObjectFactory(),
 	}
 }
 
-func (c *Core) Init() {
-	//object.GetDefinitionRegistry().Init()
-	//c.factory.init()
+func (c *Core) ObjectFactory() ObjectFactory {
+	return c.factory
+}
+
+func (c *Core) Init() error {
+	if err := c.factory.Init(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ctx *Core) Start() {

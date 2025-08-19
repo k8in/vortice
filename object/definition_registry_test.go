@@ -78,7 +78,7 @@ func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
 	}
 }
 
-func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
+func TestDefinitionRegistry_GetDefinitionsByName_Filter(t *testing.T) {
 	reg := NewDefinitionRegistry()
 	defA := makeTestDefinition("A", "fa", []string{"tag1"})
 	defB := makeTestDefinition("A", "fb", []string{"tag2"})
@@ -89,22 +89,22 @@ func TestDefinitionRegistry_GetDefinition_Filter(t *testing.T) {
 
 	// 按 factory name 过滤
 	filter := func(def *Definition) bool { return def.Factory().Name() == "fa" }
-	defs := reg.GetDefinition("A", filter)
+	defs := reg.GetDefinitionsByName("A", filter)
 	if len(defs) != 1 || defs[0].factory.name != "fa" {
-		t.Error("GetDefinition with filter failed")
+		t.Error("GetDefinitionsByName with filter failed")
 	}
 
 	// 多 filter
 	tagFilter := TagFilter("tag1")
-	defsMulti := reg.GetDefinition("A", filter, tagFilter)
+	defsMulti := reg.GetDefinitionsByName("A", filter, tagFilter)
 	if len(defsMulti) != 1 || defsMulti[0].factory.name != "fa" {
-		t.Error("GetDefinition with multiple filters failed")
+		t.Error("GetDefinitionsByName with multiple filters failed")
 	}
 
 	// 无 filter
-	defsAll := reg.GetDefinition("A")
+	defsAll := reg.GetDefinitionsByName("A")
 	if len(defsAll) != 2 {
-		t.Error("GetDefinition without filter failed")
+		t.Error("GetDefinitionsByName without filter failed")
 	}
 }
 

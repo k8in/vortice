@@ -1,25 +1,26 @@
 package container
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
 
 	"vortice/object"
 	"vortice/util"
+
+	"go.uber.org/zap"
 )
 
 const (
-	// TagNSKey is a constant string used as a key to identify the namespace in tags.
-	TagNSKey = "ns"
-	// TagNSCore represents a constant string that combines the namespace key with "core" for tagging.
-	TagNSCore = TagNSKey + "=core"
+	// TagAutowired is a constant string used as a tag to indicate that a component should be automatically wired.
+	TagAutowired = "autowired=true"
 )
 
 var (
-	// nsCoreFilter is a DefinitionFilter that selects Definitions tagged with the TagNSCore tag.
-	nsCoreFilter = object.DefinitionFilter(func(def *object.Definition) bool {
-		return util.InSlice(TagNSCore, def.Tags())
+	// autoWiredFilter is a DefinitionFilter that selects Definitions tagged with 'autowired=true'.
+	autoWiredFilter = object.DefinitionFilter(func(def *object.Definition) bool {
+		return util.InSlice(TagAutowired, def.Tags())
 	})
 	// singletonFilter is a DefinitionFilter that selects Definitions with the Singleton scope.
 	singletonFilter = object.DefinitionFilter(func(def *object.Definition) bool {
@@ -31,8 +32,8 @@ var (
 type ObjectFactory interface {
 	// DefinitionRegistry is an interface for managing and retrieving definitions, including initialization and registration.
 	object.DefinitionRegistry
-	// GetObject retrieves an object of the specified type within the given namespace, using the provided context.
-	GetObject(ctx Context, typ any) (Object, error)
+	// GetObjects retrieves a list of objects of the specified type from the factory, using the provided context.
+	GetObjects(ctx Context, typ any) ([]Object, error)
 	// Destroy cleans up resources and finalizes the ObjectFactory, returning an error if the operation fails.
 	Destroy() error
 }
@@ -41,38 +42,102 @@ type ObjectFactory interface {
 // customize object creation.
 type CoreObjectFactory struct {
 	object.DefinitionRegistry
+	once *sync.Once
 	*sync.Mutex
 	objs map[string]Object
 }
 
-// NewObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
-func NewObjectFactory() ObjectFactory {
+// NewCoreObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
+func NewCoreObjectFactory() *CoreObjectFactory {
 	return &CoreObjectFactory{
+		once:               &sync.Once{},
 		DefinitionRegistry: object.NewDefinitionRegistry(),
 		Mutex:              &sync.Mutex{},
 		objs:               map[string]Object{},
 	}
 }
 
-// GetObject retrieves an object based on the given namespace, type, and context, handling singleton scope and creation.
-func (c *CoreObjectFactory) GetObject(ctx Context, typ any) (Object, error) {
+// Init initializes the CoreObjectFactory and its singleton objects, returning an error if any occurs.
+func (c *CoreObjectFactory) Init() error {
+	var err error
+	c.once.Do(func() {
+		if err = c.DefinitionRegistry.Init(); err != nil {
+			return
+		}
+		defs := c.GetDefinitions(singletonFilter)
+		c.Lock()
+		defer c.Unlock()
+		for _, def := range defs {
+			obj, err := c.newObject(def, map[string]Object{})
+			if err != nil {
+				return
+			}
+			util.Logger().Debug("creating object", zap.String("definition", def.String()))
+			if !def.LazyInit() {
+				if err = obj.Init(); err != nil {
+					return
+				}
+				util.Logger().Debug("object initialized", zap.String("definition", def.String()))
+			}
+			c.objs[def.ID()] = obj
+		}
+	})
+	return err
+}
+
+// Destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
+func (c *CoreObjectFactory) Destroy() error {
+	c.Lock()
+	defer c.Unlock()
+	for _, obj := range c.objs {
+		if err := obj.Destroy(); err != nil {
+			// TODO warning
+			return err
+		}
+	}
+	c.DefinitionRegistry = nil
+	return nil
+}
+
+// GetObjects retrieves and initializes objects of the specified type, returning them along with any error.
+func (c *CoreObjectFactory) GetObjects(ctx Context, typ any) ([]Object, error) {
 	objType := c.getType(typ)
 	if objType == nil {
-		return nil, fmt.Errorf("object not found: %v", typ)
-	}
-	name := object.GenerateDefinitionName(objType)
-	def, err := c.getDefinition(name, ctx.GetFilters()...)
-	if err != nil {
-		return nil, err
+		return nil, errors.Join(errors.New("getType failed"),
+			fmt.Errorf("invalid object type: %v", typ))
 	}
 	c.Lock()
 	defer c.Unlock()
-	if def.Scope() == object.Singleton {
-		if obj, ok := c.objs[def.ID()]; ok {
-			return obj, nil
-		}
+	objs := []Object{}
+	name := object.GenerateDefinitionName(objType)
+	defs := c.GetDefinitionsByName(name, ctx.GetFilters()...)
+	if defs == nil || len(defs) == 0 {
+		return nil, fmt.Errorf("unknown object type: %v", typ)
 	}
-	return c.newObject(def, ctx.GetObjects())
+	for _, def := range defs {
+		var (
+			obj Object
+			err error
+		)
+		if def.IsSingleton() {
+			if v, ok := c.objs[def.ID()]; ok {
+				obj = v
+			}
+		}
+		if obj == nil {
+			obj, err = c.newObject(def, ctx.GetObjects())
+			if err != nil {
+				return nil, errors.Join(errors.New("newObject failed"), err)
+			}
+		}
+		if !obj.Initialized() {
+			if err := obj.Init(); err != nil {
+				return nil, errors.Join(errors.New("object.Init failed"), err)
+			}
+		}
+		objs = append(objs, obj)
+	}
+	return objs, nil
 }
 
 // NewObject creates a new object based on the provided definition and context, handling dependencies.
@@ -84,47 +149,53 @@ func (c *CoreObjectFactory) newObject(def *object.Definition, objs map[string]Ob
 	if err != nil {
 		return nil, err
 	}
-	return c.build(def, deps, objs)
+	return c.buildObject(def, deps, c.getBuildCtx(objs))
 }
 
-// build constructs an object and its dependencies based on the provided definition, dependency list, and context.
-func (c *CoreObjectFactory) build(def *object.Definition, deps []string, objs map[string]Object) (Object, error) {
-	cache := map[string]Object{}
+// getBuildCtx returns a context map containing the provided objects and core tagged objects from the factory.
+func (c *CoreObjectFactory) getBuildCtx(objs map[string]Object) map[string]Object {
+	ctx := map[string]Object{}
 	for k, v := range objs {
-		cache[k] = v
+		ctx[k] = v
 	}
-	for k, v := range c.objs {
-		cache[k] = v
+	for _, v := range c.objs {
+		def := v.Definition()
+		if util.InSlice(TagAutowired, def.Tags()) {
+			ctx[def.Name()] = v
+		}
 	}
+	return ctx
+}
+
+// buildObject constructs an object based on its definition, resolving and initializing its dependencies.
+func (c *CoreObjectFactory) buildObject(def *object.Definition,
+	deps []string, objs map[string]Object) (Object, error) {
 	var obj Object
 	for _, name := range deps {
-		def, err := c.getDefinition(name, nsCoreFilter)
+		obj = nil
+		def, err := c.getAutowiredDefinition(name)
 		if err != nil {
 			return nil, err
 		}
-		obj = nil
-		if def.Scope() == object.Singleton {
+		if def.IsSingleton() {
 			obj, _ = c.objs[def.ID()]
 		}
 		if obj == nil {
-			obj, err = c.new(def, cache)
+			obj, err = c.new(def, objs)
 			if err != nil {
 				return nil, err
 			}
 		}
-		if !obj.Initialized() {
-			if err = obj.Init(); err != nil {
-				return nil, err
-			}
-		}
-		cache[def.ID()] = obj
+		objs[obj.ID()] = obj
 	}
-	obj, _ = cache[def.ID()]
 	return obj, nil
 }
 
 // getType returns the reflect.Type of the provided type if it is a pointer to an interface or struct, otherwise nil.
 func (r *CoreObjectFactory) getType(typ any) reflect.Type {
+	if typ == nil {
+		return nil
+	}
 	rt := reflect.TypeOf(typ)
 	if rt.Kind() != reflect.Ptr {
 		return nil
@@ -145,7 +216,7 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition) ([]string, e
 		node := queue[0]
 		queue = queue[1:]
 
-		def, err := c.getDefinition(node, nsCoreFilter)
+		def, err := c.getAutowiredDefinition(node)
 		if err != nil {
 			return nil, err
 		}
@@ -160,10 +231,9 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition) ([]string, e
 	return sorted, nil
 }
 
-// getDefinition retrieves a definition by name from the core namespace,
-// returning an error if not found.
-func (c *CoreObjectFactory) getDefinition(name string, dfs ...object.DefinitionFilter) (*object.Definition, error) {
-	def := c.GetDefinition(name, dfs...)
+// getAutowiredDefinition retrieves a definition by name with auto-wired filter, returning an error if not found.
+func (c *CoreObjectFactory) getAutowiredDefinition(name string) (*object.Definition, error) {
+	def := c.GetDefinitionsByName(name, autoWiredFilter)
 	if def == nil || len(def) == 0 {
 		return nil, fmt.Errorf("definition not found: %s", name)
 	}
@@ -175,7 +245,7 @@ func (c *CoreObjectFactory) getDefinition(name string, dfs ...object.DefinitionF
 func (c *CoreObjectFactory) new(def *object.Definition, objs map[string]Object) (Object, error) {
 	if def.Factory().Argn() == 0 {
 		rv := def.Factory().Call([]reflect.Value{})
-		return NewObject(def, rv, rv.Interface()), nil
+		return NewObject(def, rv), nil
 	}
 	deps := def.DependsOn()
 	argv := make([]reflect.Value, 0, len(deps))
@@ -187,40 +257,5 @@ func (c *CoreObjectFactory) new(def *object.Definition, objs map[string]Object) 
 		argv = append(argv, c.Value())
 	}
 	rv := def.Factory().Call(argv)
-	return NewObject(def, rv, rv.Interface()), nil
-}
-
-// Init initializes the CoreObjectFactory and its singleton objects, returning an error if any occurs.
-func (c *CoreObjectFactory) Init() error {
-	if err := c.DefinitionRegistry.Init(); err != nil {
-		return err
-	}
-	defs := c.GetDefinitions(singletonFilter)
-	c.Lock()
-	defer c.Unlock()
-	for _, def := range defs {
-		obj, err := c.newObject(def, map[string]Object{})
-		if err != nil {
-			return err
-		}
-		if !def.LazyInit() {
-			if err = obj.Init(); err != nil {
-				return err
-			}
-		}
-		c.objs[def.ID()] = obj
-	}
-	return nil
-}
-
-// Destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
-func (c *CoreObjectFactory) Destroy() error {
-	c.Lock()
-	defer c.Unlock()
-	for _, obj := range c.objs {
-		if err := obj.Destroy(); err != nil {
-			// TODO warning
-		}
-	}
-	return nil
+	return NewObject(def, rv), nil
 }

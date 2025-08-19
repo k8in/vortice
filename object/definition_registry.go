@@ -25,8 +25,8 @@ type (
 		// RegisterFactory registers a factory function with the given property and returns a new Definition,
 		// or an error if registration fails.
 		RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error)
-		// GetDefinition retrieves a list of Definitions by name, optionally filtered by the provided DefinitionFilter functions.
-		GetDefinition(name string, filters ...DefinitionFilter) []*Definition
+		// GetDefinitionsByName retrieves a list of Definitions by name, optionally filtered by the provided DefinitionFilter functions.
+		GetDefinitionsByName(name string, filters ...DefinitionFilter) []*Definition
 		// GetDefinitions returns a list of all Definitions, optionally filtered by the provided DefinitionFilter functions.
 		GetDefinitions(filters ...DefinitionFilter) []*Definition
 	}
@@ -89,15 +89,15 @@ func (dr *DefaultDefRegistry) RegisterFactory(fn any, prop *Property, unique boo
 // Init locks the DefinitionRegistry, sorts and checks for circular dependencies, then logs the process.
 func (dr *DefaultDefRegistry) Init() error {
 	dr.readonly.Store(true)
-	util.Logger().Info("The DefinitionRegistry has already been locked")
+	util.Logger().Info("the DefinitionRegistry has been locked")
 	if err := dr.sortAndCheck(); err != nil {
 		return err
 	}
 	return nil
 }
 
-// GetDefinition retrieves definitions by name, optionally applying filters to refine the results.
-func (dr *DefaultDefRegistry) GetDefinition(name string, filters ...DefinitionFilter) []*Definition {
+// GetDefinitionsByName retrieves definitions by name, optionally filtered by provided DefinitionFilter functions.
+func (dr *DefaultDefRegistry) GetDefinitionsByName(name string, filters ...DefinitionFilter) []*Definition {
 	defs := dr.entries[name]
 	if len(filters) == 0 {
 		return defs
@@ -171,7 +171,7 @@ func (dr *DefaultDefRegistry) register(def *Definition, unique bool) error {
 		New(ServiceA)
 	}
 
-// 为了简化系统设计，不允许依赖环这种代码设计
+// 为了简化系统设计，不允许依赖环这种���码设计
 */
 func (dr *DefaultDefRegistry) sortAndCheck() error {
 	dag, defs := util.NewDAG(), dr.factories
