@@ -71,9 +71,7 @@ func TestLifecycleProcessor_Start_Success(t *testing.T) {
 	if !lp.objs[0].Running() {
 		t.Fatalf("object should be running after start")
 	}
-	if err := lp.stop(newCoreCtx2()); err != nil {
-		t.Fatalf("stop failed: %v", err)
-	}
+	lp.stop(newCoreCtx2())
 }
 
 func TestLifecycleProcessor_Start_AlreadyRunning(t *testing.T) {
@@ -116,9 +114,7 @@ func TestLifecycleProcessor_Stop_Success(t *testing.T) {
 	if len(lp.objs) != 1 || !lp.objs[0].Running() {
 		t.Fatalf("object should be running after start")
 	}
-	if err := lp.stop(newCoreCtx2()); err != nil {
-		t.Fatalf("stop failed: %v", err)
-	}
+	lp.stop(newCoreCtx2())
 }
 
 func TestLifecycleProcessor_Stop_NotRunning(t *testing.T) {
@@ -141,9 +137,7 @@ func TestLifecycleProcessor_Stop_NotRunning(t *testing.T) {
 	}
 	lp := newLifecycleProcessor(200 * time.Millisecond)
 	lp.objs = []Object{objs[0]}
-	if err := lp.stop(ctx); err != nil {
-		t.Fatalf("stop should not fail when object wasn't running: %v", err)
-	}
+	lp.stop(newCoreCtx2())
 }
 
 func TestLifecycleProcessor_Stop_Error(t *testing.T) {
@@ -155,7 +149,5 @@ func TestLifecycleProcessor_Stop_Error(t *testing.T) {
 	if len(lp.objs) != 1 || !lp.objs[0].Running() {
 		t.Fatalf("object should be running after start")
 	}
-	if err := lp.stop(newCoreCtx2()); err == nil {
-		t.Fatalf("stop should fail when service Stop returns error")
-	}
+	lp.stop(newCoreCtx2())
 }

@@ -77,7 +77,7 @@ func (p *lifecycleProcessor) start(ctx context.Context, factory ObjectFactory) e
 }
 
 // stop stops all running services in reverse order, logging the status of each service.
-func (p *lifecycleProcessor) stop(ctx context.Context) error {
+func (p *lifecycleProcessor) stop(ctx context.Context) {
 	n := len(p.objs)
 	l := util.Logger()
 	for i := n - 1; i >= 0; i-- {
@@ -95,9 +95,7 @@ func (p *lifecycleProcessor) stop(ctx context.Context) error {
 		if err != nil {
 			l.Error("service wasn't stopped",
 				zap.String("service", obj.ID()), zap.Error(err))
-			return err
 		}
 		l.Info("service stopped successfully", zap.String("service", obj.ID()))
 	}
-	return nil
 }

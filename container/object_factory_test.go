@@ -178,9 +178,7 @@ func TestCoreObjectFactory_init_destroy(t *testing.T) {
 	if err := factory.Init(); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
-	if err := factory.Destroy(); err != nil {
-		t.Fatalf("Destroy failed: %v", err)
-	}
+	factory.Destroy()
 }
 
 func TestCoreObjectFactory_MultiInit(t *testing.T) {

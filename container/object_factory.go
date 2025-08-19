@@ -33,7 +33,7 @@ type ObjectFactory interface {
 	// GetObjectsByName retrieves a list of objects by name from the factory, using the provided context.
 	GetObjectsByName(ctx Context, name string) ([]Object, error)
 	// Destroy cleans up resources and finalizes the ObjectFactory, returning an error if the operation fails.
-	Destroy() error
+	Destroy()
 }
 
 // CoreObjectFactory is a factory for creating core objects, equipped with definition filters to
@@ -84,16 +84,14 @@ func (c *CoreObjectFactory) Init() error {
 }
 
 // Destroy cleans up all created objects by calling their Destroy method, ensuring proper resource release.
-func (c *CoreObjectFactory) Destroy() error {
+func (c *CoreObjectFactory) Destroy() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	for _, obj := range c.objs {
 		if err := obj.Destroy(); err != nil {
 			// TODO warning
-			return err
 		}
 	}
-	return nil
 }
 
 // GetObjects retrieves and initializes objects of the specified type, returning them along with any error.
