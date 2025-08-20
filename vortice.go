@@ -83,6 +83,7 @@ func register(fn any, opts ...Option) {
 	for _, option := range opts {
 		option(prop)
 	}
+	prop.SetTags(container.TagAutowired)
 	if _, err := container.DefaultCore().RegisterFactory(fn, prop, true); err != nil {
 		util.Logger().Panic("register", zap.Error(err))
 	}

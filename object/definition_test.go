@@ -18,7 +18,7 @@ func newTestDefinition() *Definition {
 		desc:        "desc",
 		lazyInit:    true,
 		autoStartup: true,
-		tags:        []string{"tag1", "tag2"},
+		tags:        []Tag{NewTag("tag1", "v1"), NewTag("tag2", "v2")},
 	}
 }
 
@@ -55,11 +55,11 @@ func TestDefinition_SliceCopySafety(t *testing.T) {
 	deps := def.DependsOn()
 	tags := def.Tags()
 	deps[0] = "changed"
-	tags[0] = "changed"
+	tags[0] = NewTag("changed", "v")
 	if def.dependsOn[0] == "changed" {
 		t.Error("DependsOn getter did not return a copy")
 	}
-	if def.tags[0] == "changed" {
+	if def.tags[0].Key() == "changed" {
 		t.Error("Tags getter did not return a copy")
 	}
 }
@@ -99,8 +99,8 @@ func TestDefinition_ModifyReturnedSlice(t *testing.T) {
 	}
 	ta := def.Tags()
 	tb := def.Tags()
-	ta[0] = "y"
-	if tb[0] == "y" {
+	ta[0] = NewTag("y", "v")
+	if tb[0].Key() == "y" {
 		t.Error("Tags getter returns shared slice")
 	}
 }
@@ -141,7 +141,7 @@ func TestDefinition_IsValid(t *testing.T) {
 	}
 	def.factory = &Factory{}
 	def.methods = &Methods{}
-	def.tags = []string{}
+	def.tags = []Tag{}
 	def.dependsOn = []string{}
 	// 所有必需字段都设置后，应该为 true
 	if !def.IsValid() {
@@ -150,11 +150,15 @@ func TestDefinition_IsValid(t *testing.T) {
 }
 
 func TestProperty_GetTagsCopy(t *testing.T) {
-	prop := &Property{tags: []string{"x", "y"}}
+	prop := NewProperty()
+	prop.SetTags(NewTag("x", "y"), NewTag("a", "b"))
 	tags := prop.GetTags()
-	tags[0] = "z"
-	if prop.tags[0] == "z" {
-		t.Error("Property.GetTags should return a copy")
+	tags[0] = NewTag("z", "v")
+	origTags := prop.GetTags()
+	for _, tag := range origTags {
+		if tag.Key() == "z" {
+			t.Error("Property.GetTags should return a copy")
+		}
 	}
 }
 

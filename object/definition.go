@@ -38,7 +38,7 @@ type Definition struct {
 	desc        string
 	lazyInit    bool
 	autoStartup bool
-	tags        []string // tags holds a list of string tags associated with the component definition.
+	tags        []Tag // tags holds a list of string tags associated with the component definition.
 }
 
 // IsValid checks if the Definition is valid, ensuring name, type, factory, dependsOn, and methods are set, and tags are not.
@@ -105,11 +105,11 @@ func (d *Definition) AutoStartup() bool {
 
 // Tags returns a copy of the tags for the component definition.
 // Always returns a non-nil slice (at least empty).
-func (d *Definition) Tags() []string {
+func (d *Definition) Tags() []Tag {
 	if d.tags == nil {
-		return []string{}
+		return []Tag{}
 	}
-	tags := make([]string, len(d.tags))
+	tags := make([]Tag, len(d.tags))
 	copy(tags, d.tags)
 	return tags
 }
@@ -133,7 +133,7 @@ type Property struct {
 	Desc        string
 	LazyInit    bool
 	AutoStartup bool
-	tags        []string
+	tags        map[string]Tag
 }
 
 // NewProperty creates a new Property instance with default values.
@@ -143,20 +143,58 @@ func NewProperty() *Property {
 		Desc:        "",
 		LazyInit:    true,
 		AutoStartup: false,
-		tags:        []string{},
+		tags:        map[string]Tag{},
 	}
 }
 
-// SetTag adds a new key-value pair to the property's tags.
-func (prop *Property) SetTag(key, val string) {
-	prop.tags = append(prop.tags, key+"="+val)
+// SetTags updates the property's tags, replacing any existing tags with the same key.
+func (prop *Property) SetTags(tags ...Tag) {
+	if tags == nil || len(tags) == 0 {
+		return
+	}
+	for _, tag := range tags {
+		prop.tags[tag.Key()] = tag
+	}
 }
 
 // GetTags returns a copy of the tags associated with the property.
-func (prop *Property) GetTags() []string {
-	tags := make([]string, len(prop.tags))
-	copy(tags, prop.tags)
+func (prop *Property) GetTags() []Tag {
+	tags := make([]Tag, 0, len(prop.tags))
+	for _, tag := range prop.tags {
+		tags = append(tags, tag)
+	}
 	return tags
+}
+
+// Tag represents a key-value pair used for tagging or labeling.
+type Tag struct {
+	key string
+	val string
+}
+
+// NewTag creates a new Tag with the specified key and value.
+func NewTag(key, val string) Tag {
+	return Tag{key: key, val: val}
+}
+
+// Key returns the key component of the Tag.
+func (t Tag) Key() string {
+	return t.key
+}
+
+// Value returns the value component of the Tag.
+func (t Tag) Value() string {
+	return t.val
+}
+
+// Equals checks if the current Tag is equal to another Tag based on their string representations.
+func (t Tag) Equals(t2 Tag) bool {
+	return t.String() == t2.String()
+}
+
+// String returns a string representation of the Tag in the format "key=value".
+func (t Tag) String() string {
+	return fmt.Sprintf("%s=%v", t.key, t.val)
 }
 
 // Option is a function type for configuring Property with functional options.

@@ -43,11 +43,16 @@ func ScopeFilter(scope Scope) DefinitionFilter {
 }
 
 // TagFilter returns a DefinitionFilter that matches Definitions with the specified tag.
-func TagFilter(match string) DefinitionFilter {
+func TagFilter(tags ...Tag) DefinitionFilter {
 	return func(def *Definition) bool {
-		for _, tag := range def.Tags() {
-			if tag == match {
-				return true
+		if tags == nil || len(tags) == 0 {
+			return false
+		}
+		for _, tag0 := range def.Tags() {
+			for _, tag1 := range tags {
+				if tag0.Equals(tag1) {
+					return true
+				}
 			}
 		}
 		return false

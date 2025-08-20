@@ -26,7 +26,7 @@ func (t *testCtx) GetFilters() []object.DefinitionFilter { return nil }
 func (t *testCtx) GetObjects() map[string]Object         { return nil }
 
 func addCoreTag(prop *object.Property) {
-	prop.SetTag("autowired", "true")
+	prop.SetTags(TagAutowired)
 }
 
 func newCoreCtx() *CoreContext {
@@ -211,7 +211,7 @@ func TestCoreObjectFactory_AutowiredFilter(t *testing.T) {
 		t.Fatalf("Init failed: %v", err)
 	}
 	// 只应返回带 autowired tag 的对象
-	defs := factory.GetDefinitions(object.TagFilter("autowired=true"))
+	defs := factory.GetDefinitions(object.TagFilter(TagAutowired))
 	if len(defs) != 3 {
 		t.Error("TagFilter should only return autowired objects")
 	}

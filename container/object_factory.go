@@ -12,16 +12,11 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// TagAutowired is a constant string used as a tag to indicate that a component should be automatically wired.
-	TagAutowired = "autowired=true"
-)
-
 var (
-	// autoWiredFilter is a DefinitionFilter that selects Definitions tagged with 'autowired=true'.
-	autoWiredFilter = object.DefinitionFilter(func(def *object.Definition) bool {
-		return util.InSlice(TagAutowired, def.Tags())
-	})
+	// TagAutowired is a Tag used to mark components that should be automatically wired.
+	TagAutowired = object.NewTag("autowired", "true")
+	// autoWiredFilter is a DefinitionFilter that matches Definitions tagged with TagAutowired for automatic wiring.
+	autoWiredFilter = object.TagFilter(TagAutowired)
 )
 
 // ObjectFactory is an interface for creating and managing objects, including initialization and destruction.
@@ -165,8 +160,10 @@ func (c *CoreObjectFactory) getBuildCtx(objs map[string]Object) map[string]Objec
 	}
 	for _, v := range c.objs {
 		def := v.Definition()
-		if util.InSlice(TagAutowired, def.Tags()) {
-			ctx[def.Name()] = v
+		for _, tag0 := range def.Tags() {
+			if TagAutowired.Equals(tag0) {
+				ctx[def.Name()] = v
+			}
 		}
 	}
 	return ctx

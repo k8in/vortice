@@ -2,36 +2,43 @@ package business
 
 import (
 	"context"
+	"vortice/container"
 )
+
+// Context represents an interface that extends the standard context with additional
+// methods for managing objects and namespaces.
+type Context[O any] interface {
+	container.Context
+	Namespace() Namespace
+	Object() O
+}
 
 type ctxKey string
 
 var (
-	nsKey  = ctxKey("namespace")
+	// nsKey is a context key used to store the namespace in a context.
+	nsKey = ctxKey("namespace")
+	// objKey is a context key used to store the object in a context.
 	objKey = ctxKey("object")
 )
 
-type Context[O any] interface {
-	Namespace() string
-	Object() O
+type Ctx[O any] struct {
+	*container.CoreContext
+	obj O
 }
 
-type ctx[O any] struct {
-	context.Context
+// WithContext creates a new context with the specified namespace and returns a Context object.
+func WithContext[O any](ctx context.Context, ns string) Context[O] {
+	ctx = context.WithValue(ctx, nsKey, Namespace(ns))
+	return &Ctx[O]{CoreContext: container.WithCoreContext(ctx)}
 }
 
-func (ctx *ctx[O]) Namespace() string {
-	return ctx.Value(nsKey).(string)
+// Namespace retrieves the namespace associated with the context.
+func (ctx *Ctx[O]) Namespace() Namespace {
+	return ctx.Value(nsKey).(Namespace)
 }
 
-func (ctx *ctx[O]) Object() O {
-	return ctx.Value(objKey).(O)
-}
-
-func WithNamespace(ctx context.Context, ns string) context.Context {
-	return context.WithValue(ctx, nsKey, string(ns))
-}
-
-func WithObject[O any](c context.Context, obj O) Context[O] {
-	return &ctx[O]{Context: context.WithValue(c, objKey, obj)}
+// Object returns the object associated with the context.
+func (ctx *Ctx[O]) Object() O {
+	return ctx.obj
 }

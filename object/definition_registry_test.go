@@ -7,7 +7,7 @@ import (
 
 // --- AI GENERATED CODE BEGIN ---
 
-func makeTestDefinition(name, factoryName string, tags []string) *Definition {
+func makeTestDefinition(name, factoryName string, tags []Tag) *Definition {
 	return &Definition{
 		name:      name,
 		typ:       reflect.TypeOf(""),
@@ -21,8 +21,8 @@ func makeTestDefinition(name, factoryName string, tags []string) *Definition {
 
 func TestDefinitionRegistry_Register_DuplicateFactory(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	def1 := makeTestDefinition("obj1", "factory1", []string{"tag"})
-	def2 := makeTestDefinition("obj2", "factory1", []string{"tag"})
+	def1 := makeTestDefinition("obj1", "factory1", []Tag{NewTag("k", "v")})
+	def2 := makeTestDefinition("obj2", "factory1", []Tag{NewTag("k", "v")})
 	if err := reg.register(def1, false); err != nil {
 		t.Fatalf("register def1 failed: %v", err)
 	}
@@ -33,8 +33,8 @@ func TestDefinitionRegistry_Register_DuplicateFactory(t *testing.T) {
 
 func TestDefinitionRegistry_Register_Unique(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	def1 := makeTestDefinition("obj1", "factory1", []string{"tag"})
-	def2 := makeTestDefinition("obj1", "factory2", []string{"tag"})
+	def1 := makeTestDefinition("obj1", "factory1", []Tag{NewTag("k", "v")})
+	def2 := makeTestDefinition("obj1", "factory2", []Tag{NewTag("k", "v")})
 	if err := reg.register(def1, true); err != nil {
 		t.Fatalf("register def1 failed: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestDefinitionRegistry_Register_Unique(t *testing.T) {
 
 func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	def := makeTestDefinition("obj", "factory", []string{"tag"})
+	def := makeTestDefinition("obj", "factory", []Tag{NewTag("k", "v")})
 	if err := reg.register(def, false); err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 	if !reg.readonly.Load() {
 		t.Error("registry should be readonly after Init")
 	}
-	def2 := makeTestDefinition("obj2", "factory2", []string{"tag"})
+	def2 := makeTestDefinition("obj2", "factory2", []Tag{NewTag("k", "v")})
 	err := reg.register(def2, false)
 	if err == nil {
 		t.Error("register should fail after Init")
@@ -70,7 +70,7 @@ func TestDefinitionRegistry_RegisterAndLock(t *testing.T) {
 
 func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	def := makeTestDefinition("obj", "factory", []string{"tag"})
+	def := makeTestDefinition("obj", "factory", []Tag{NewTag("k", "v")})
 	if err := reg.register(def, false); err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -86,9 +86,9 @@ func TestDefinitionRegistry_EntriesAndFactories(t *testing.T) {
 
 func TestDefinitionRegistry_GetDefinitionsByName_Filter(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	defA := makeTestDefinition("A", "fa", []string{"tag1"})
-	defB := makeTestDefinition("A", "fb", []string{"tag2"})
-	defC := makeTestDefinition("B", "fc", []string{"tag1"})
+	defA := makeTestDefinition("A", "fa", []Tag{NewTag("tag1", "v1")})
+	defB := makeTestDefinition("A", "fb", []Tag{NewTag("tag2", "v2")})
+	defC := makeTestDefinition("B", "fc", []Tag{NewTag("tag1", "v1")})
 	_ = reg.register(defA, false)
 	_ = reg.register(defB, false)
 	_ = reg.register(defC, false)
@@ -101,7 +101,7 @@ func TestDefinitionRegistry_GetDefinitionsByName_Filter(t *testing.T) {
 	}
 
 	// 多 filter
-	tagFilter := TagFilter("tag1")
+	tagFilter := TagFilter(NewTag("tag1", "v1"))
 	defsMulti := reg.GetDefinitionsByName("A", filter, tagFilter)
 	if len(defsMulti) != 1 || defsMulti[0].factory.name != "fa" {
 		t.Error("GetDefinitionsByName with multiple filters failed")
@@ -116,9 +116,9 @@ func TestDefinitionRegistry_GetDefinitionsByName_Filter(t *testing.T) {
 
 func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	defA := makeTestDefinition("A", "fa", []string{"tag1"})
-	defB := makeTestDefinition("B", "fb", []string{"tag2"})
-	defC := makeTestDefinition("C", "fc", []string{"tag1"})
+	defA := makeTestDefinition("A", "fa", []Tag{NewTag("tag1", "v1")})
+	defB := makeTestDefinition("B", "fb", []Tag{NewTag("tag2", "v2")})
+	defC := makeTestDefinition("C", "fc", []Tag{NewTag("tag1", "v1")})
 	_ = reg.register(defA, false)
 	_ = reg.register(defB, false)
 	_ = reg.register(defC, false)
@@ -130,7 +130,7 @@ func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
 	}
 
 	// tag filter
-	tagFilter := TagFilter("tag1")
+	tagFilter := TagFilter(NewTag("tag1", "v1"))
 	tagDefs := reg.GetDefinitions(tagFilter)
 	if len(tagDefs) != 2 {
 		t.Errorf("GetDefinitions with tag filter failed, got %d", len(tagDefs))
@@ -145,8 +145,8 @@ func TestDefinitionRegistry_GetDefinitions(t *testing.T) {
 
 func TestDefinitionRegistry_SortAndCheck_Cycle(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	defA := makeTestDefinition("A", "fa", []string{})
-	defB := makeTestDefinition("B", "fb", []string{})
+	defA := makeTestDefinition("A", "fa", []Tag{})
+	defB := makeTestDefinition("B", "fb", []Tag{})
 	defA.dependsOn = []string{"B"}
 	defB.dependsOn = []string{"A"}
 	_ = reg.register(defA, false)
@@ -159,7 +159,7 @@ func TestDefinitionRegistry_SortAndCheck_Cycle(t *testing.T) {
 
 func TestDefinitionRegistry_SortAndCheck_MissingDep(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	defA := makeTestDefinition("A", "fa", []string{})
+	defA := makeTestDefinition("A", "fa", []Tag{})
 	defA.dependsOn = []string{"B"}
 	_ = reg.register(defA, false)
 	err := reg.sortAndCheck()
@@ -170,8 +170,8 @@ func TestDefinitionRegistry_SortAndCheck_MissingDep(t *testing.T) {
 
 func TestDefinitionRegistry_Init_SortAndCheck(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	defA := makeTestDefinition("A", "fa", []string{})
-	defB := makeTestDefinition("B", "fb", []string{})
+	defA := makeTestDefinition("A", "fa", []Tag{})
+	defB := makeTestDefinition("B", "fb", []Tag{})
 	defA.dependsOn = []string{"B"}
 	defB.dependsOn = []string{}
 	_ = reg.register(defA, false)
@@ -190,11 +190,11 @@ func TestDefinitionRegistry_Init_SortAndCheck(t *testing.T) {
 
 func TestDefinitionRegistry_Init_SortAndCheck_Complex(t *testing.T) {
 	reg := NewDefinitionRegistry()
-	defA1 := makeTestDefinition("A", "fa1", []string{})
-	defA2 := makeTestDefinition("A", "fa2", []string{})
-	defB := makeTestDefinition("B", "fb", []string{})
-	defC := makeTestDefinition("C", "fc", []string{})
-	defD := makeTestDefinition("D", "fd", []string{})
+	defA1 := makeTestDefinition("A", "fa1", []Tag{})
+	defA2 := makeTestDefinition("A", "fa2", []Tag{})
+	defB := makeTestDefinition("B", "fb", []Tag{})
+	defC := makeTestDefinition("C", "fc", []Tag{})
+	defD := makeTestDefinition("D", "fd", []Tag{})
 
 	defA1.dependsOn = []string{"B", "C"}
 	defA2.dependsOn = []string{"B"}
@@ -244,7 +244,7 @@ func TestDefinitionRegistry_GetDefinitionsByType(t *testing.T) {
 		dependsOn: []string{},
 		methods:   &Methods{},
 		scope:     Singleton,
-		tags:      []string{"tag"},
+		tags:      []Tag{NewTag("tag", "v")},
 	}
 	_ = reg.register(def, false)
 

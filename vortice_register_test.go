@@ -22,12 +22,12 @@ type rt4 struct{ a int }
 type rt5 struct{ a int }
 type rt6 struct{ a int }
 
-func f0() *rt0                                      { return &rt0{a: 0} }
-func f1(a *ra) *rt1                                 { return &rt1{a: 1} }
-func f2(a *ra, b *rb) *rt2                          { return &rt2{a: 2} }
-func f3(a *ra, b *rb, c *rc) *rt3                   { return &rt3{a: 3} }
-func f4(a *ra, b *rb, c *rc, d *rd) *rt4            { return &rt4{a: 4} }
-func f5(a *ra, b *rb, c *rc, d *rd, e *re) *rt5     { return &rt5{a: 5} }
+func f0() *rt0                                         { return &rt0{a: 0} }
+func f1(a *ra) *rt1                                    { return &rt1{a: 1} }
+func f2(a *ra, b *rb) *rt2                             { return &rt2{a: 2} }
+func f3(a *ra, b *rb, c *rc) *rt3                      { return &rt3{a: 3} }
+func f4(a *ra, b *rb, c *rc, d *rd) *rt4               { return &rt4{a: 4} }
+func f5(a *ra, b *rb, c *rc, d *rd, e *re) *rt5        { return &rt5{a: 5} }
 func f6(a *ra, b *rb, c *rc, d *rd, e *re, f *rf) *rt6 { return &rt6{a: 6} }
 
 func TestRegister0To6_NoPanic(t *testing.T) {
@@ -44,7 +44,7 @@ type rtOpt struct{}
 
 func TestRegister_WithOption_SetTag(t *testing.T) {
 	called := false
-	op := func(p *object.Property) { called = true; p.SetTag("k", "v") }
+	op := func(p *object.Property) { called = true; p.SetTags(object.NewTag("k", "v")) }
 	Register0(func() *rtOpt { return &rtOpt{} }, op)
 	if !called {
 		t.Fatalf("option not called")
@@ -63,5 +63,3 @@ func TestRegister0_DisallowDuplicate(t *testing.T) {
 	}()
 	Register0(f)
 }
-
-
