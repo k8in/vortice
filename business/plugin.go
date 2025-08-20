@@ -1,34 +1,51 @@
 package business
 
-type Namespace string
+import "vortice/object"
 
-type PluginInitFunc func() error
-
+// Plugin represents a modular component that can be registered and initialized within a Core, providing additional functionalities.
 type Plugin struct {
-	ns   string
-	fns  []PluginInitFunc
-	used []any
+	core      *Core
+	name      string
+	initFns   []func() error
+	exts      map[string]*object.Definition
+	abilities []any
 }
 
-func NewPlugin(ns string) *Plugin {
-	return &Plugin{ns: ns, fns: []PluginInitFunc{}}
+// newPlugin creates a new Plugin instance with the specified name and associated Core.
+func newPlugin(name string, core *Core) *Plugin {
+	return &Plugin{
+		core:      core,
+		name:      name,
+		initFns:   []func() error{},
+		exts:      map[string]*object.Definition{},
+		abilities: []any{},
+	}
 }
 
-func (p *Plugin) InitExtension(fn ...PluginInitFunc) {
-	p.fns = append(p.fns, fn...)
+// Name returns the name of the plugin.
+func (p *Plugin) Name() string {
+	return p.name
 }
 
-func (p *Plugin) Use() {
-
+// Init appends initialization functions to the plugin, to be executed during the plugin's initialization.
+func (p *Plugin) Init(fn ...func() error) {
+	p.initFns = append(p.initFns, fn...)
 }
 
+// Register adds the plugin to the Core, making it available for initialization and use.
 func (p *Plugin) Register() {
-	return
+	p.core.RegisterPlugin(p)
 }
 
+// setDefinition adds a new object definition to the plugin's extensions map using its ID.
+func (p *Plugin) setDefinition(def *object.Definition) {
+	p.exts[def.ID()] = def
+}
+
+// init executes all initialization functions registered with the plugin, returning an error if any function fails.
 func (p *Plugin) init() error {
-	for _, init := range p.fns {
-		if err := init(); err != nil {
+	for _, initFunc := range p.initFns {
+		if err := initFunc(); err != nil {
 			return err
 		}
 	}
