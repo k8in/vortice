@@ -15,29 +15,52 @@ import (
 var (
 	// TagAutowired is a Tag used to mark components that should be automatically wired.
 	TagAutowired = object.NewTag("autowired", "true")
-	// autoWiredFilter is a DefinitionFilter that matches Definitions tagged with TagAutowired for automatic wiring.
-	autoWiredFilter = object.TagFilter(TagAutowired)
+	// autowiredFilter is a DefinitionFilter that matches Definitions tagged with TagAutowired for automatic wiring.
+	autowiredFilter = object.TagFilter(TagAutowired)
+	// realizationSelectFunc is a function that selects and returns the first Definition from a list, or nil if the list is empty.
+	realizationSelectFunc RealizationSelectFunc = func(defs []*object.Definition) *object.Definition {
+		if defs == nil || len(defs) == 0 {
+			return nil
+		}
+		return defs[0]
+	}
 )
 
-// ObjectFactory is an interface for creating and managing objects, including initialization and destruction.
-type ObjectFactory interface {
-	// DefinitionRegistry is an interface for managing and retrieving definitions, including initialization and registration.
-	object.DefinitionRegistry
-	// GetObjects retrieves a list of objects of the specified type from the factory, using the provided context.
-	GetObjects(ctx Context, typ any) ([]Object, error)
-	// GetObjectsByName retrieves a list of objects by name from the factory, using the provided context.
-	GetObjectsByName(ctx Context, name string) ([]Object, error)
-	// Destroy cleans up resources and finalizes the ObjectFactory, returning an error if the operation fails.
-	Destroy()
+type (
+	// RealizationSelectFunc is a function type that selects and returns a single Definition from a list of Definitions.
+	RealizationSelectFunc func(defs []*object.Definition) *object.Definition
+	// RealizationSelector is an interface for selecting a single Definition from a list of Definitions.
+	RealizationSelector interface {
+		Select(defs []*object.Definition) *object.Definition
+	}
+	// ObjectFactory is an interface for creating and managing objects, including initialization and destruction.
+	ObjectFactory interface {
+		// DefinitionRegistry is an interface for managing and retrieving definitions, including initialization and registration.
+		object.DefinitionRegistry
+		// GetObjects retrieves a list of objects of the specified type from the factory, using the provided context.
+		GetObjects(ctx Context, typ any) ([]Object, error)
+		// GetObjectsByName retrieves a list of objects by name from the factory, using the provided context.
+		GetObjectsByName(ctx Context, name string) ([]Object, error)
+		// SetRealizationSelector sets the AutowiredSelector to be used for selecting Definitions during auto-wiring.
+		SetRealizationSelector(selector RealizationSelector)
+		// Destroy cleans up resources and finalizes the ObjectFactory, returning an error if the operation fails.
+		Destroy()
+	}
+)
+
+// Select invokes the AutowiredSelectFunc with a list of Definitions and returns a single selected Definition.
+func (fn RealizationSelectFunc) Select(defs []*object.Definition) *object.Definition {
+	return fn(defs)
 }
 
 // CoreObjectFactory is a factory for creating core objects, equipped with definition filters to
 // customize object creation.
 type CoreObjectFactory struct {
 	object.DefinitionRegistry
-	once  *sync.Once
-	mutex *sync.RWMutex
-	objs  map[string]Object
+	once     *sync.Once
+	mutex    *sync.RWMutex
+	selector RealizationSelector
+	objs     map[string]Object
 }
 
 // NewCoreObjectFactory creates a new instance of CoreObjectFactory with a namespace filter for the core namespace.
@@ -46,8 +69,16 @@ func NewCoreObjectFactory() *CoreObjectFactory {
 		DefinitionRegistry: object.NewDefinitionRegistry(),
 		once:               &sync.Once{},
 		mutex:              &sync.RWMutex{},
+		selector:           realizationSelectFunc,
 		objs:               map[string]Object{},
 	}
+}
+
+// SetRealizationSelector sets the autowiring selector for choosing a definition when multiple are available.
+func (c *CoreObjectFactory) SetRealizationSelector(selector RealizationSelector) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.selector = selector
 }
 
 // Init initializes the CoreObjectFactory and its singleton objects, returning an error if any occurs.
@@ -61,13 +92,17 @@ func (c *CoreObjectFactory) Init() error {
 		}
 		l := util.Logger()
 		for _, def := range c.GetDefinitions(object.ScopeFilter(object.Singleton)) {
-			obj, err := c.newObject(def, map[string]Object{})
+			// 修复: 避免使用 := 遮蔽外层 err
+			var obj Object
+			obj, err = c.newObject(def, map[string]Object{})
 			if err != nil {
+				err = fmt.Errorf("newObject failed: %s: %w", def.Name(), err)
 				return
 			}
 			l.Debug("creating object", zap.String("definition", def.String()))
 			if !def.LazyInit() {
 				if err = obj.Init(); err != nil {
+					err = fmt.Errorf("object.Init failed: %s: %w", def.Name(), err)
 					return
 				}
 				l.Debug("object initialized", zap.String("definition", def.String()))
@@ -190,6 +225,10 @@ func (c *CoreObjectFactory) buildObject(def *object.Definition,
 		}
 		objs[obj.ID()] = obj
 	}
+	obj, err := c.new(def, objs)
+	if err != nil {
+		return nil, err
+	}
 	return obj, nil
 }
 
@@ -219,11 +258,11 @@ func (c *CoreObjectFactory) getDependencies(def *object.Definition) ([]string, e
 
 // getAutowiredDefinition retrieves a definition by name with auto-wired filter, returning an error if not found.
 func (c *CoreObjectFactory) getAutowiredDefinition(name string) (*object.Definition, error) {
-	def := c.GetDefinitionsByName(name, autoWiredFilter)
-	if def == nil || len(def) == 0 {
+	defs := c.GetDefinitionsByName(name, autowiredFilter)
+	if defs == nil || len(defs) == 0 {
 		return nil, fmt.Errorf("definition not found: %s", name)
 	}
-	return def[0], nil
+	return c.selector.Select(defs), nil
 }
 
 // new creates a new object based on the provided definition and context,

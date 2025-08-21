@@ -1,6 +1,9 @@
 package util
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // DAG represents a Directed Acyclic Graph.
 type DAG struct {
@@ -29,10 +32,7 @@ func (dag *DAG) Sort() ([]string, error) {
 	}
 	for _, deps := range dag.nodes {
 		for _, dep := range deps {
-			// 1. No deduplication for dep, duplicate dependencies will increase in-degree, but do not affect the final result.
-			// 2. If dep is not explicitly added via AddNode, it will be automatically added to inDegree here,
-			// but dag.nodes[dep] will not have its own dependency list.
-			inDegree[dep]++
+			inDegree[dep]++ // 允许隐式节点：未显式 AddNode 的依赖会在此加入
 		}
 	}
 
@@ -57,12 +57,93 @@ func (dag *DAG) Sort() ([]string, error) {
 		}
 	}
 
-	if len(result) != len(dag.nodes) {
-		return nil, fmt.Errorf("cycle detected or missing dependency in the DAG")
+	if len(result) != len(inDegree) {
+		// 有残留节点 => 存在环
+		cycle := dag.findCycle(inDegree)
+		remaining := dag.remainingNodes(inDegree)
+		if len(cycle) > 0 {
+			return nil, fmt.Errorf("cycle detected: %s (all remaining nodes: %v)",
+				strings.Join(cycle, " -> "), remaining)
+		}
+		return nil, fmt.Errorf("cycle detected among nodes: %v", remaining)
 	}
 
 	// The result is reversed to ensure dependency-first order.
 	return dag.reverse(result), nil
+}
+
+// findCycle 尝试在残留节点子图中找到一条环路径
+func (dag *DAG) findCycle(inDegree map[string]int) []string {
+	// 只对 inDegree > 0 的节点进行 DFS
+	subgraph := map[string]bool{}
+	for n, deg := range inDegree {
+		if deg > 0 {
+			subgraph[n] = true
+		}
+	}
+	visited := map[string]bool{}
+	stack := map[string]bool{}
+	path := []string{}
+	var cycle []string
+
+	var dfs func(string) bool
+	dfs = func(node string) bool {
+		visited[node] = true
+		stack[node] = true
+		path = append(path, node)
+
+		for _, dep := range dag.nodes[node] {
+			// 只考虑仍在 subgraph 的节点
+			if !subgraph[dep] {
+				continue
+			}
+			if !visited[dep] {
+				if dfs(dep) {
+					return true
+				}
+			} else if stack[dep] {
+				// 找到回边，截取 cycle
+				cycle = extractCycle(path, dep)
+				return true
+			}
+		}
+
+		stack[node] = false
+		path = path[:len(path)-1]
+		return false
+	}
+
+	for n := range subgraph {
+		if !visited[n] {
+			if dfs(n) {
+				break
+			}
+		}
+	}
+	return cycle
+}
+
+// extractCycle 从当前 DFS 路径中截取形成环的部分
+func extractCycle(path []string, start string) []string {
+	for i, n := range path {
+		if n == start {
+			cp := append([]string{}, path[i:]...)
+			cp = append(cp, start) // 闭合
+			return cp
+		}
+	}
+	return nil
+}
+
+// remainingNodes 返回还未处理完的节点集合（inDegree>0）
+func (dag *DAG) remainingNodes(inDegree map[string]int) []string {
+	var rem []string
+	for n, deg := range inDegree {
+		if deg > 0 {
+			rem = append(rem, n)
+		}
+	}
+	return rem
 }
 
 // reverse reverses the sorted result to ensure dependency-first order.

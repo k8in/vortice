@@ -231,7 +231,9 @@ func (dr *DefaultDefRegistry) sortAndCheck() error {
 	for _, name := range sorted {
 		defs, ok := dr.entries[name]
 		if !ok {
-			return fmt.Errorf("%s validation failed: definition not found", name)
+			err := fmt.Errorf("definition not found: %s", name)
+			util.Logger().Error("validation failed", zap.String("name", name), zap.Error(err))
+			return err
 		}
 		for _, def := range defs {
 			util.Logger().Debug("validation passed",

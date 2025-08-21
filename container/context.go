@@ -22,7 +22,8 @@ type Context interface {
 // CoreContext extends the standard context.Context to include additional functionality for managing application contexts.
 type CoreContext struct {
 	context.Context
-	dfs []object.DefinitionFilter
+	dfs  []object.DefinitionFilter
+	objs map[string]Object
 }
 
 // WithCoreContext creates a new CoreContext with the provided context, enhancing it for application-specific context management.
@@ -30,26 +31,34 @@ func WithCoreContext(ctx context.Context) *CoreContext {
 	return &CoreContext{
 		Context: ctx,
 		dfs:     []object.DefinitionFilter{},
+		objs:    map[string]Object{},
 	}
 }
 
 // SetFilter updates the list of DefinitionFilter functions used for filtering component definitions.
 func (c *CoreContext) SetFilter(filters ...object.DefinitionFilter) {
-	if filters != nil && len(filters) != 0 {
-		dfs := make([]object.DefinitionFilter, 0, len(filters))
-		copy(dfs, filters)
-		c.dfs = dfs
+	if len(filters) == 0 {
+		return
 	}
+	dfs := make([]object.DefinitionFilter, len(filters))
+	copy(dfs, filters)
+	c.dfs = dfs
 }
 
 // GetFilters returns a slice of DefinitionFilter functions that can be used to filter component definitions.
 func (c *CoreContext) GetFilters() []object.DefinitionFilter {
-	return []object.DefinitionFilter{}
+	if len(c.dfs) == 0 {
+		return []object.DefinitionFilter{}
+	}
+	cp := make([]object.DefinitionFilter, len(c.dfs))
+	copy(cp, c.dfs)
+	return cp
 }
 
 // GetObjects returns a map of objects managed by the container, currently returning an empty map.
 func (c *CoreContext) GetObjects() map[string]Object {
-	// This method should return a map of objects managed by the container.
-	// For now, we return an empty map as a placeholder.
-	return map[string]Object{}
+	if c.objs == nil {
+		c.objs = map[string]Object{}
+	}
+	return c.objs
 }
