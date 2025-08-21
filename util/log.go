@@ -10,6 +10,10 @@ import (
 var (
 	mux                = sync.RWMutex{}
 	logger *zap.Logger = defaultLogger()
+	// 可替换的构建钩子，测试时注入失败场景以覆盖 fallback 分支
+	buildLogger = func(cfg zap.Config) (*zap.Logger, error) {
+		return cfg.Build()
+	}
 )
 
 // defaultLogger returns a zap.Logger configured to log to standard output.
@@ -22,7 +26,8 @@ func defaultLogger() *zap.Logger {
 		EncoderConfig:     zap.NewDevelopmentEncoderConfig(),
 		DisableStacktrace: true,
 	}
-	l, err := cfg.Build()
+	// 使用可替换构建函数，便于测试覆盖错误分支
+	l, err := buildLogger(cfg)
 	if err != nil {
 		// fallback to zap.NewNop if config fails
 		return zap.NewNop()
