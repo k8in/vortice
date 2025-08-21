@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	// ErrRegisterFactory is the error returned when a factory registration fails.
-	ErrRegisterFactory = errors.New("failed to register factory")
+	// ErrParseDefinition is the error returned when there's a failure in parsing a definition.
+	ErrParseDefinition = errors.New("failed to parse definition")
 )
 
 type (
@@ -83,13 +83,13 @@ func NewDefinitionRegistry() *DefaultDefRegistry {
 
 // RegisterFactory registers a factory function with the given property, returning a new Definition.
 func (dr *DefaultDefRegistry) RegisterFactory(fn any, prop *Property, unique bool) (*Definition, error) {
-	parser := NewParser(fn)
-	def, err := parser.Parse(prop)
+	def, err := ParseDefinition(fn, prop)
 	if err != nil {
-		return nil, errors.Join(ErrRegisterFactory, err)
+		return nil, errors.Join(ErrParseDefinition, err)
 	}
 	if err := dr.register(def, unique); err != nil {
-		return nil, errors.Join(ErrRegisterFactory, err)
+		errInnerRegister := fmt.Errorf("failed to register definition internally: %s", def.ID())
+		return nil, errors.Join(errInnerRegister, err)
 	}
 	return def, nil
 }
@@ -179,6 +179,9 @@ func (dr *DefaultDefRegistry) register(def *Definition, unique bool) error {
 	if dr.readonly.Load() {
 		return errors.New("the DefinitionRegistry has been locked")
 	}
+	if !def.IsValid() {
+		return errors.New("definition not valid")
+	}
 	if unique {
 		if _, ok := dr.entries[def.Name()]; ok {
 			return fmt.Errorf("object type %s does not allow duplicate definition", def.Name())
@@ -231,10 +234,15 @@ func (dr *DefaultDefRegistry) sortAndCheck() error {
 			return fmt.Errorf("%s validation failed: definition not found", name)
 		}
 		for _, def := range defs {
-			util.Logger().Info("validation passed",
-				zap.String("definition", def.Name()),
+			util.Logger().Debug("validation passed",
+				zap.String("name", def.Name()),
 				zap.String("factory", def.Factory().Name()),
-				zap.Int("dependsOn", len(def.DependsOn())))
+				zap.Int("dependsOn", len(def.DependsOn())),
+				zap.Bool("isSingleton", def.IsSingleton()),
+				zap.String("desc", def.Desc()),
+				zap.Bool("lazyInit", def.LazyInit()),
+				zap.Bool("autoStartup", def.AutoStartup()),
+				zap.Any("tags", def.Tags()))
 			inSeq = append(inSeq, def.Factory().Name())
 		}
 	}

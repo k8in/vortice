@@ -118,7 +118,7 @@ func (m *Methods) CallRunning(ins reflect.Value) (bool, error) {
 	}
 	b, ok := rv[0].Interface().(bool)
 	if !ok {
-		return false, fmt.Errorf("instance %s: method %s return value is not bool",
+		return false, fmt.Errorf("instance %s: method %s return value is not a bool",
 			reflect.TypeOf(ins), m.runningMethod.Name)
 	}
 	return b, nil

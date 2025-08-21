@@ -18,8 +18,14 @@ const (
 	Prototype Scope = "Prototype"
 )
 
-// ErrParseDefinition is the error returned when there's a failure in parsing the definition.
-var ErrParseDefinition = errors.New("failed to parse definition")
+var (
+	// ErrDefinitionInput is the error used when the input for a definition is invalid.
+	ErrDefinitionInput = errors.New("invalid definition input")
+	// ErrDefinitionOutput is the error used when the output for a definition is invalid.
+	ErrDefinitionOutput = errors.New("invalid definition output")
+	// ErrMissingRequiredField indicates a required field is missing in the definition.
+	ErrMissingRequiredField = errors.New("missing required field in definition")
+)
 
 // GenerateDefinitionName creates a unique name for a definition based on the provided namespace and argument type.
 func GenerateDefinitionName(argType reflect.Type) string {
@@ -39,6 +45,12 @@ type Definition struct {
 	lazyInit    bool
 	autoStartup bool
 	tags        []Tag // tags holds a list of string tags associated with the component definition.
+}
+
+// ParseDefinition parses a function and property to create a component definition, returning it or an error.
+func ParseDefinition(fn any, prop *Property) (*Definition, error) {
+	parser := NewParser(fn)
+	return parser.Parse(prop)
 }
 
 // IsValid checks if the Definition is valid, ensuring name, type, factory, dependsOn, and methods are set, and tags are not.
@@ -227,14 +239,14 @@ func NewParser(fn any) *Parser {
 // Parse initializes the parser and checks the input, returning a Definition or an error.
 func (p *Parser) Parse(prop *Property) (*Definition, error) {
 	if err := p.checkInputAndSet(); err != nil {
-		return nil, errors.Join(ErrParseDefinition, err)
+		return nil, errors.Join(ErrDefinitionInput, err)
 	}
 	if err := p.checkOutputAndSet(); err != nil {
-		return nil, errors.Join(ErrParseDefinition, err)
+		return nil, errors.Join(ErrDefinitionOutput, err)
 	}
 	def := p.newDefinition(prop)
 	if !def.IsValid() {
-		return nil, errors.Join(ErrParseDefinition, errors.New("invalid definition"))
+		return nil, ErrMissingRequiredField
 	}
 	return def, nil
 }
@@ -244,7 +256,7 @@ func (p *Parser) newDefinition(prop *Property) *Definition {
 	return &Definition{
 		name:        generateReflectionName(p.obj),
 		typ:         p.rt,
-		factory:     newFactory(p.rv, p.argv, p.argn),
+		factory:     NewFactory(p.rv, p.argv, p.argn),
 		dependsOn:   p.deps,
 		methods:     newMethods(p.obj),
 		scope:       prop.Scope,
@@ -264,7 +276,7 @@ func (p *Parser) generateDefinitionName(argType reflect.Type) string {
 func (p *Parser) checkInputAndSet() error {
 	rv := reflect.ValueOf(p.fn)
 	if !rv.IsValid() {
-		return errors.New("invalid function")
+		return errors.New("input function is invalid")
 	}
 	if rv.Kind() != reflect.Func {
 		return errors.New("input must be a function")
@@ -291,7 +303,7 @@ func (p *Parser) checkInputAndSet() error {
 // ensuring it has exactly one return value and sets the object type.
 func (p *Parser) checkOutputAndSet() error {
 	if p.rt.NumOut() != 1 {
-		return errors.New("invalid factory function output")
+		return errors.New("function must have exactly one return value")
 	}
 	p.obj = p.rt.Out(0)
 	if err := p.checkReturnType(p.obj); err != nil {
@@ -325,9 +337,8 @@ func (p *Parser) checkReturnType(rt reflect.Type) error {
 			return nil
 		}
 	default:
-		return fmt.Errorf("invalid output type: %v", rt.String())
 	}
-	return nil
+	return fmt.Errorf("invalid output type: %v", rt.String())
 }
 
 // generateReflectionName generates a string representation of the type name

@@ -58,9 +58,9 @@ type Factory struct {
 	argn int
 }
 
-// newFactory creates a new factory with the provided function, its arguments,
+// NewFactory creates a new factory with the provided function, its arguments,
 // and the number of expected arguments.
-func newFactory(rfn reflect.Value, argv []reflect.Value, argn int) *Factory {
+func NewFactory(rfn reflect.Value, argv []reflect.Value, argn int) *Factory {
 	ptr := rfn.Pointer()
 	fn := runtime.FuncForPC(ptr)
 	file, line := fn.FileLine(ptr)

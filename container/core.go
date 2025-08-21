@@ -9,9 +9,7 @@ import (
 var (
 	// DefaultStartupTimeout defines the default duration to wait for services to start before timing out.
 	DefaultStartupTimeout = 6 * time.Second
-)
 
-var (
 	core *Core
 	once = &sync.Once{}
 )
