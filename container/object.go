@@ -24,6 +24,8 @@ type Object interface {
 	// Value returns the reflect.Value of the object, allowing for type inspection
 	// and manipulation.
 	Value() reflect.Value
+	// Alive returns true if the object has not been destroyed.
+	Alive() bool
 	// Initialized returns true if the object has been initialized,
 	// indicating its readiness for use.
 	Initialized() bool
@@ -66,6 +68,13 @@ func (obj *CoreObject) Value() reflect.Value {
 	return obj.value
 }
 
+// Alive returns true if the object has not been destroyed.
+func (obj *CoreObject) Alive() bool {
+	obj.mux.RLock()
+	defer obj.mux.RUnlock()
+	return obj.def != nil
+}
+
 // Initialized returns true if the object has been initialized.
 func (obj *CoreObject) Initialized() bool {
 	return obj.init.Load()
@@ -75,11 +84,11 @@ func (obj *CoreObject) Initialized() bool {
 func (obj *CoreObject) Init() error {
 	obj.mux.Lock()
 	defer obj.mux.Unlock()
-	if obj.init.Load() {
-		return nil
-	}
 	if obj.def == nil {
 		return ErrAlreadyBeenDestroyed
+	}
+	if obj.init.Load() {
+		return nil
 	}
 	if err := obj.def.Methods().CallInit(obj.value); err != nil {
 		return err
@@ -106,8 +115,8 @@ func (obj *CoreObject) Destroy() error {
 
 // Running returns true if the object is currently running.
 func (obj *CoreObject) Running() bool {
-	obj.mux.Lock()
-	defer obj.mux.Unlock()
+	obj.mux.RLock()
+	defer obj.mux.RUnlock()
 	if obj.def == nil {
 		return false
 	}
