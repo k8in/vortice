@@ -110,22 +110,22 @@ func (c *Core) RegisterExtension(fn any, prop *object.Property) (*object.Definit
 	return c.registerMainExt(fn, prop)
 }
 
-//// RegisterAbility registers a new ability with the given function and property, returning its definition or an error.
-//func (c *Core) RegisterAbility(fn any, prop *object.Property) (*object.Definition, error) {
-//	if err := c.checkReadonlyMode(); err != nil {
-//		return nil, err
-//	}
-//	c.mutex.Lock()
-//	defer c.mutex.Unlock()
-//	prop.SetTags(TagAbilityKind, newNamespaceTag(MainNamespace))
-//	def, err := c.core.RegisterFactory(fn, prop, false)
-//	if err != nil {
-//		return nil, errors.Join(ErrRegisterAbility, err)
-//	}
-//	key := def.Name()
-//	c.abilities[key] = append(c.abilities[key], def)
-//	return def, nil
-//}
+// RegisterAbility registers a new ability with the given function and property, returning its definition or an error.
+func (c *Core) RegisterAbility(fn any, prop *object.Property) (*object.Definition, error) {
+	if err := c.checkReadonlyMode(); err != nil {
+		return nil, err
+	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	prop.SetTags(TagAbilityKind, newNamespaceTag(MainNamespace))
+	def, err := c.core.RegisterFactory(fn, prop, false)
+	if err != nil {
+		return nil, err
+	}
+	key := def.Name()
+	c.abilities[key] = append(c.abilities[key], def)
+	return def, nil
+}
 
 // RegisterPlugin adds a plugin to the Core, checking for readonly mode and ensuring no current plugin or duplicate exists.
 func (c *Core) RegisterPlugin(plugin *Plugin) error {

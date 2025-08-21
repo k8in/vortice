@@ -6,7 +6,7 @@ import (
 )
 
 // TagBizKindKey is a constant string used to identify the business kind in tagged data.
-const TagBizKindKey = "biz_kind"
+const TagBizKindKey = "kind"
 
 var (
 	// TagExtensionKind is a predefined Tag used to mark components or properties as extensions with the key "biz_kind" and value "extension".

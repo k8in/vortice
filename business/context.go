@@ -9,6 +9,7 @@ import (
 // Context represents an interface for managing and accessing context-specific information,
 // including namespace and objects.
 type Context interface {
+	// Context represents an interface that extends the standard context.Context with additional methods for managing filters and objects.
 	container.Context
 	// Namespace returns the namespace associated with the context.
 	Namespace() string

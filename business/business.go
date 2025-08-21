@@ -20,10 +20,10 @@ type Option object.Option
 //	return nil
 //}
 
-//// RegisterAbility registers a factory function for creating an Ability, with optional configuration.
-//func RegisterAbility[O Target, E Extension, T Ability[O, E], FN AbilityFactory[O, E, T]](fn FN, opts ...Option) {
-//	RegisterExtN(fn, opts...)
-//}
+// RegisterAbility registers a factory function for creating an Ability, with optional configuration.
+func RegisterAbility[O Target, E Extension, T Ability[O, E], FN AbilityFactory[O, E, T]](fn FN, opts ...Option) {
+	RegisterExtN(fn, opts...)
+}
 
 // RegisterPlugin registers a plugin with the default core, panicking if an error occurs.
 func RegisterPlugin(plugin *Plugin) {
