@@ -1,6 +1,9 @@
 package business
 
-import "vortice/object"
+import (
+	"fmt"
+	"vortice/object"
+)
 
 // Plugin represents a plugin with initialization functions, extensions, and abilities.
 type Plugin struct {
@@ -36,6 +39,11 @@ func (p *Plugin) GetExtension(name string) *object.Definition {
 		return def
 	}
 	return nil
+}
+
+// String returns a string representation of the Plugin, including its name.
+func (p *Plugin) String() string {
+	return fmt.Sprintf("<Plugin %s>", p.name)
 }
 
 // addExtension adds a new extension to the plugin if it does not already exist, returning true if added.

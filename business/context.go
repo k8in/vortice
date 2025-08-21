@@ -44,10 +44,11 @@ func GetNamespace(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if ns, ok := ctx.Value(nsKey).(string); ok {
-		return ns
+	v := ctx.Value(nsKey)
+	if v == nil {
+		return ""
 	}
-	return ""
+	return v.(string)
 }
 
 // Namespace retrieves the namespace associated with the context.
