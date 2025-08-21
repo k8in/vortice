@@ -10,8 +10,8 @@ type Plugin struct {
 	abilities  map[string]*object.Definition
 }
 
-// newPlugin creates a new Plugin instance with the specified name and associated Core.
-func newPlugin(name string) *Plugin {
+// NewPlugin creates a new Plugin instance with the specified name and associated Core.
+func NewPlugin(name string) *Plugin {
 	return &Plugin{
 		name:       name,
 		inits:      []func() error{},
@@ -38,9 +38,13 @@ func (p *Plugin) GetExtension(name string) *object.Definition {
 	return nil
 }
 
-// addExtension adds a new object definition to the plugin's extensions map using its ID.
-func (p *Plugin) addExtension(def *object.Definition) {
-	p.extensions[def.ID()] = def
+// addExtension adds a new extension to the plugin if it does not already exist, returning true if added.
+func (p *Plugin) addExtension(def *object.Definition) bool {
+	if _, ok := p.extensions[def.Name()]; !ok {
+		p.extensions[def.Name()] = def
+		return true
+	}
+	return false
 }
 
 // init executes all initialization functions registered with the plugin, returning an error if any function fails.

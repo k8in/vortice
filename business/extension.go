@@ -5,14 +5,14 @@ import (
 	"vortice/object"
 )
 
-// TagBizKind is a constant string used to identify the business kind in tagged data.
-const TagBizKind = "biz_kind"
+// TagBizKindKey is a constant string used to identify the business kind in tagged data.
+const TagBizKindKey = "biz_kind"
 
 var (
-	// TagExtension is a predefined Tag used to mark components or properties as extensions with the key "biz_kind" and value "extension".
-	TagExtension = object.NewTag(TagBizKind, "extension")
-	// TagAbility is a predefined Tag used to mark components or properties as abilities with the key "biz_kind" and value "ability".
-	TagAbility = object.NewTag(TagBizKind, "ability")
+	// TagExtensionKind is a predefined Tag used to mark components or properties as extensions with the key "biz_kind" and value "extension".
+	TagExtensionKind = object.NewTag(TagBizKindKey, "extension")
+	// TagAbilityKind is a predefined Tag used to mark components or properties as abilities with the key "biz_kind" and value "ability".
+	TagAbilityKind = object.NewTag(TagBizKindKey, "ability")
 )
 
 type (

@@ -7,6 +7,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// Option is a function type for configuring Property with functional options.
+type Option object.Option
+
 //// GetAbility retrieves the extension for a given ability type and target object within the provided context.
 //func GetAbility[O Target, E Extension, T Ability[O, E]](ctx Context, typ T, obj O) E {
 //	return nil

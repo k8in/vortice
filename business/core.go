@@ -23,6 +23,8 @@ var (
 	ErrRegisterMainExt = errors.New("failed to register main extension")
 	// ErrRegisterPluginExt is the error returned when a plugin extension registration fails.
 	ErrRegisterPluginExt = errors.New("failed to register plugin extension")
+	// ErrRegisterAbility is the error returned when an ability registration fails.
+	ErrRegisterAbility = errors.New("failed to register ability")
 	// ErrInitialized is the error returned when an attempt to initialize an already initialized BusinessCore is made.
 	ErrInitialized = errors.New("the BusinessCore has already been initialized")
 
@@ -49,22 +51,24 @@ func newNamespaceTag(ns string) object.Tag {
 // Core encapsulates the container's core, a set of plugins, and a mutex for thread-safe operations.
 type Core struct {
 	core       *container.Core
-	extensions *sync.Map
-	abilities  *sync.Map
-	plugins    *sync.Map
 	readonly   *atomic.Bool
+	plugins    *sync.Map
 	current    *atomic.Value
+	mutex      *sync.Mutex
+	extensions map[string]*object.Definition
+	abilities  map[string][]*object.Definition
 }
 
 // NewCore initializes a new Core instance with the provided container.Core, setting up a mutex and an empty plugin list.
 func NewCore(core *container.Core) *Core {
 	return &Core{
 		core:       core,
-		extensions: &sync.Map{},
-		abilities:  &sync.Map{},
-		plugins:    &sync.Map{},
 		readonly:   &atomic.Bool{},
+		plugins:    &sync.Map{},
 		current:    &atomic.Value{},
+		mutex:      &sync.Mutex{},
+		extensions: map[string]*object.Definition{},
+		abilities:  map[string][]*object.Definition{},
 	}
 }
 
@@ -96,6 +100,16 @@ func (c *Core) Init() error {
 	return err
 }
 
+// Start initiates the services, ensuring they are running and managing their lifecycle.
+func (c *Core) Start() error {
+	return c.core.Start()
+}
+
+// Shutdown stops all running services and cleans up resources, finalizing the Core.
+func (c *Core) Shutdown() {
+	c.core.Shutdown()
+}
+
 // RegisterExtension registers a factory function with the given property, setting extension and namespace tags.
 func (c *Core) RegisterExtension(fn any, prop *object.Property) (*object.Definition, error) {
 	if err := c.checkReadonlyMode(); err != nil {
@@ -107,24 +121,21 @@ func (c *Core) RegisterExtension(fn any, prop *object.Property) (*object.Definit
 	return c.registerMainExt(fn, prop)
 }
 
-//// RegisterAbility registers a new ability with the given function and property, returning its definition or an error.
-//func (c *Core) RegisterAbility(fn any, prop *object.Property) (*object.Definition, error) {
-//	return nil, nil
-//}
-
-// NewPlugin creates and returns a new Plugin instance with the given name, associated with the current Core.
-func (c *Core) NewPlugin(name string) *Plugin {
-	return newPlugin(name)
-}
-
-// Start initiates the services, ensuring they are running and managing their lifecycle.
-func (c *Core) Start() error {
-	return c.core.Start()
-}
-
-// Shutdown stops all running services and cleans up resources, finalizing the Core.
-func (c *Core) Shutdown() {
-	c.core.Shutdown()
+// RegisterAbility registers a new ability with the given function and property, returning its definition or an error.
+func (c *Core) RegisterAbility(fn any, prop *object.Property) (*object.Definition, error) {
+	if err := c.checkReadonlyMode(); err != nil {
+		return nil, errors.Join(ErrRegisterAbility, err)
+	}
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	prop.SetTags(TagAbilityKind, newNamespaceTag(MainNamespace))
+	def, err := c.core.RegisterFactory(fn, prop, false)
+	if err != nil {
+		return nil, errors.Join(ErrRegisterAbility, err)
+	}
+	key := def.Name()
+	c.abilities[key] = append(c.abilities[key], def)
+	return def, nil
 }
 
 // RegisterPlugin adds a plugin to the Core, checking for readonly mode and ensuring no current plugin or duplicate exists.
@@ -144,31 +155,30 @@ func (c *Core) RegisterPlugin(plugin *Plugin) error {
 
 // registerMainExt registers an extension point with the given function and property, setting extension and main namespace tags.
 func (c *Core) registerMainExt(fn any, prop *object.Property) (*object.Definition, error) {
-	prop.SetTags(TagExtension, newNamespaceTag(MainNamespace))
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	prop.SetTags(TagExtensionKind, newNamespaceTag(MainNamespace))
 	def, err := c.core.RegisterFactory(fn, prop, true)
 	if err != nil {
 		return nil, errors.Join(ErrRegisterMainExt, err)
 	}
-	if ok := c.extensions.CompareAndSwap(def.Name(), nil, def); !ok {
-		var def0Name string
-		if def0, ok := c.extensions.Load(def.Name()); ok {
-			def0Name = def0.(*object.Definition).ID()
-		}
-		err = fmt.Errorf("extension %s already exists: %s", def.Name(), def0Name)
+	if def0, ok := c.extensions[def.Name()]; ok {
+		err = fmt.Errorf("extension %s already exists: %s", def.Name(), def0.Name())
 		return nil, errors.Join(ErrRegisterMainExt, err)
 	}
+	c.extensions[def.Name()] = def
 	return def, nil
 }
 
 // registerPluginExt registers an extension for a plugin, setting appropriate tags and associating it with the plugin.
 func (c *Core) registerPluginExt(fn any, prop *object.Property, plugin *Plugin) (*object.Definition, error) {
-	prop.SetTags(TagExtension, newNamespaceTag(plugin.Name()))
+	prop.SetTags(TagExtensionKind, newNamespaceTag(plugin.Name()))
 	def, err := c.core.RegisterFactory(fn, prop, false)
 	if err != nil {
 		return nil, errors.Join(ErrRegisterPluginExt, err)
 	}
 	if plugin != nil {
-		if def := plugin.GetExtension(def.Name()); def != nil {
+		if ok := plugin.addExtension(def); !ok {
 			err := fmt.Errorf("extension %s already exists", def.Name())
 			return nil, errors.Join(ErrRegisterPluginExt, err)
 		}
